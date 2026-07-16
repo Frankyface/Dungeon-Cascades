@@ -1,5 +1,5 @@
 # Feature: Drag Input UI (Skia board + gesture drag-path + move timer)
-_Stage: 1 — Naked Board · Status: not started_
+_Stage: 1 — Naked Board · Status: awaiting verification_
 
 ## Goal
 The on-device face of the naked board: a `@shopify/react-native-skia` canvas that renders the grid and,
@@ -35,7 +35,12 @@ manual procedure:
    run with `npm test`; the engine itself is verified separately in `feature-board-engine.md`.
 
 ## Verification Log
-(empty until verification actually happens — a feature with an empty log can never be `verified done`)
+### 2026-07-15 — Automated portion executed by manager session — PASS; on-device steps remain for Cam
+- Code complete: Skia canvas board (6×5, 5 colors), gesture drag with dead-zone hysteresis (commit at pitch/2 + 0.18·pitch on the dominant axis), one-way 5s timer latch, wave-by-wave resolution animation, running "Combo ×N" + last-move total, input locked while resolving. All UI knobs in `src/ui/board/constants.ts`.
+- `npm test` → 16 suites / 100 tests green, including 6 UI-logic suites / 42 tests (layout, hysteresis, path builder, timer, resolution replay, game reducer). The resolution-replay test pins the UI to the engine: the last replayed snapshot must deep-equal the engine's `finalBoard`.
+- `npx tsc --noEmit` → exit 0 (strict). `npx expo export --platform ios` → exit 0, 4.1MB Hermes bundle. Engine untouched (grep guard clean).
+- NOT verified (Cam's manual steps 2–4): on-device drag feel, timer behavior under a real finger, cascade legibility, fps. Status stays `awaiting verification` until Cam runs the procedure above via Expo Go — see `help.md`.
+- Backtrack note: dragging back into the previous cell is a normal reverse step (P&D semantics — swap and inverse swap cancel); verified by unit test.
 
 ## Open Questions
 - **Drag timer length** (~5s default) and whether it is fixed or later relic-modifiable — settle during

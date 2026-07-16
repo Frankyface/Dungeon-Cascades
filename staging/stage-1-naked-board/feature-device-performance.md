@@ -1,5 +1,5 @@
 # Feature: Device Performance & Fun Gate (60fps spike + kill/pivot decision)
-_Stage: 1 — Naked Board · Status: not started_
+_Stage: 1 — Naked Board · Status: awaiting verification_
 
 ## Goal
 The tech spike that de-risks the stack and the milestone build that triggers the FUN GATE. It proves the
@@ -30,7 +30,9 @@ and "is it fun" are things only an on-device human session can judge. Procedure:
    **pivot**, or **kill**, and why. Claude does not make this call and never marks feel "done" for Cam.
 
 ## Verification Log
-(empty until verification actually happens — a feature with an empty log can never be `verified done`)
+### 2026-07-15 — Build ready; verification is Cam's and has NOT happened yet
+- The fun-gate build exists: the playable naked board runs from `app/index.tsx` (`npx expo start` → Expo Go). All automated gates pass (100 tests, strict tsc, clean iOS bundle export). Sim baseline for context: greedy bot 3.43 vs random 0.35 avg combos/move (~9.7× skill gap).
+- Nothing on-device has been measured — no fps numbers exist and no fun verdict exists. Cam's procedure is in `help.md` ("Run the Stage 1 fun gate on your iPhone"): play, read the performance monitor during drag + cascade, paste the fps numbers here, and record the continue/pivot/kill verdict in `docs/decisions.md`. Only that closes this feature.
 
 ## Open Questions
 - Exact **fps measurement method** and threshold: the Expo/RN performance monitor is the default; whether

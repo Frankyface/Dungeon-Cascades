@@ -29,10 +29,25 @@ needed, a link if one is known, and which stage it blocks.
   Link: https://developer.apple.com/account
   Blocks: **Stage 5** (TestFlight / sharing with friends) only.
 
-- [ ] **Verify Node.js 20+ and npm are installed on the Windows dev machine.**
+- [x] **Verify Node.js 20+ and npm are installed on the Windows dev machine.**
   What: confirm a current Node.js LTS (version 20 or newer) and npm are installed and on
   PATH (`node -v` and `npm -v`).
   Why: Expo / React Native tooling and the Jest test suite need a modern Node runtime;
   this is the prerequisite for the very first Stage 1 task (creating the Expo app).
   Link: https://nodejs.org
   Blocks: **Stage 1** first task (scaffolding the Expo app).
+  ✅ Verified 2026-07-15 by a Claude session: Node v24.15.0, npm 11.16.0.
+
+- [ ] **Run the Stage 1 fun gate on your iPhone (the big one).**
+  What: the naked board is built and all automated checks pass. Playing it and judging it
+  is yours alone: (1) `npx expo start` in the project folder, scan the QR with Expo Go on
+  your iPhone; (2) drag tiles, build cascades, feel the ~5s timer; (3) open the Expo dev
+  menu (shake the phone) → "Show performance monitor" and watch the UI/JS FPS during a
+  drag and during a big cascade — note the numbers; (4) play until you have a verdict and
+  then record it, dated, in `docs/decisions.md` as `## <date> — Stage 1 fun gate` with
+  **continue**, **pivot**, or **kill** and a sentence or two of why. Also paste your FPS
+  numbers into `staging/stage-1-naked-board/feature-device-performance.md`'s Verification
+  Log. A pivot/kill verdict is a SUCCESSFUL outcome of Stage 1 — don't force a continue.
+  Why: this is the kill/pivot gate the whole project is staked on; feel and fps can only
+  be judged on-device by you.
+  Blocks: **Stage 1 completion and everything after it.**

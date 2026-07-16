@@ -22,9 +22,12 @@ skeleton** before any feature work:
 ## Features
 - [x] `feature-board-engine.md` — headless pure-TS engine: grid state, seeded tile spawn, drag-path move
       resolution, match detection, cascade/combo resolution, gravity/refill. (verified done 2026-07-15)
-- [ ] `feature-drag-input-ui.md` — Skia board renderer + gesture drag-path input + visible move timer.
-- [ ] `feature-sim-bot.md` — headless random-path + greedy bots and a stats CLI over N seeded games.
-- [ ] `feature-device-performance.md` — the 60fps tech spike + the fun-gate build and recorded decision.
+- [~] `feature-drag-input-ui.md` — Skia board renderer + gesture drag-path input + visible move timer.
+      (awaiting verification 2026-07-15 — code + logic tests done; on-device steps are Cam's)
+- [x] `feature-sim-bot.md` — headless random-path + greedy bots and a stats CLI over N seeded games.
+      (verified done 2026-07-15)
+- [~] `feature-device-performance.md` — the 60fps tech spike + the fun-gate build and recorded decision.
+      (awaiting verification 2026-07-15 — build ready; fps measurement + fun verdict are Cam's, see help.md)
 
 ## Definition of done (testable checklist)
 Stage 1 is done only when EVERY box below can be checked with real evidence:
@@ -32,8 +35,9 @@ Stage 1 is done only when EVERY box below can be checked with real evidence:
 - [x] The engine resolves drag-path moves — swaps, match detection, cascades, gravity and seeded refills
       — **deterministically under a seed**, with Jest unit tests achieving **≥80% coverage on
       `src/engine/`**. (evidence: feature-board-engine.md Verification Log, 2026-07-15)
-- [ ] The **random-path and greedy** sim bots complete **1000 headless seeded games without error** and
+- [x] The **random-path and greedy** sim bots complete **1000 headless seeded games without error** and
       produce a stats report (avg combos/move, cascade-depth distribution, resolution time).
+      (evidence: feature-sim-bot.md Verification Log, 2026-07-15 — greedy 3.43 vs random 0.35 combos/move)
 - [ ] The board **renders on Skia** and a **finger drag-path move works on Cam's iPhone via Expo Go**,
       with a **visible move timer** counting down once the held tile first moves.
 - [ ] The build sustains **~60fps during drag + cascade on-device** (measured, not eyeballed).
