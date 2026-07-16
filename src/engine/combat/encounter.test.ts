@@ -59,10 +59,10 @@ describe('startEncounter', () => {
     expect(s.status).toBe('ongoing');
     expect(s.playerHp).toBe(60);
     expect(s.playerMaxHp).toBe(60);
-    expect(s.enemyHp).toBe(30);
-    expect(s.enemyMaxHp).toBe(30);
+    expect(s.enemyHp).toBe(80);
+    expect(s.enemyMaxHp).toBe(80);
     expect(s.intentIndex).toBe(0);
-    expect(s.telegraph).toEqual({ type: 'attack', value: 6 });
+    expect(s.telegraph).toEqual({ type: 'attack', value: 8 });
     expect(s.turn).toBe(0);
     expect(s.board.cols).toBe(6);
     expect(s.board.rows).toBe(5);
@@ -83,35 +83,35 @@ describe('startEncounter', () => {
 
 describe('turn order — win check fires BEFORE the enemy acts', () => {
   it('a lethal move kills the enemy, which never acts; player HP untouched', () => {
-    const state = makeState({ enemyId: 'slime', enemyHp: 5, enemyMaxHp: 30, rngState: createRng(0), board: boardFromRows(RRR_BOARD) });
+    const state = makeState({ enemyId: 'slime', enemyHp: 5, enemyMaxHp: 80, rngState: createRng(0), board: boardFromRows(RRR_BOARD) });
     const res = playTurn(state, LEFT_PATH, SAFE_REFILL);
 
-    expect(res.damage).toBe(20); // R weak (2.0×) 3-match: 10 × 2.0 × 1.0
+    expect(res.damage).toBe(6); // R weak (2.0×) 3-match: 3 × 2.0 × 1.0
     expect(res.status).toBe('won');
     expect(res.enemyAction).toBeNull(); // dead enemy never acts
-    expect(res.enemyHpAfter).toBe(0); // floored (overkill 20 vs 5 HP)
+    expect(res.enemyHpAfter).toBe(0); // floored (overkill 6 vs 5 HP)
     expect(res.playerHpBefore).toBe(60);
     expect(res.playerHpAfter).toBe(60); // enemy never attacked
     expect(res.state.status).toBe('won');
   });
 
   it('overkill is allowed on the killing blow (damage retained, HP floored at 0)', () => {
-    const state = makeState({ enemyId: 'slime', enemyHp: 1, enemyMaxHp: 30, rngState: createRng(0), board: boardFromRows(RRR_BOARD) });
+    const state = makeState({ enemyId: 'slime', enemyHp: 1, enemyMaxHp: 80, rngState: createRng(0), board: boardFromRows(RRR_BOARD) });
     const res = playTurn(state, LEFT_PATH, SAFE_REFILL);
-    expect(res.damage).toBe(20); // full damage number retained
+    expect(res.damage).toBe(6); // full damage number retained
     expect(res.enemyHpAfter).toBe(0); // never negative
   });
 });
 
 describe('turn order — enemy acts, then lose check', () => {
   it('a non-lethal move lets the enemy fire its telegraph and kill the player', () => {
-    const state = makeState({ enemyId: 'slime', enemyHp: 30, enemyMaxHp: 30, playerHp: 5, rngState: createRng(0), board: boardFromRows(GGG_BOARD) });
+    const state = makeState({ enemyId: 'slime', enemyHp: 30, enemyMaxHp: 80, playerHp: 5, rngState: createRng(0), board: boardFromRows(GGG_BOARD) });
     const res = playTurn(state, LEFT_PATH, SAFE_REFILL);
 
-    expect(res.damage).toBe(10); // G normal (1.0×) 3-match
-    expect(res.enemyHpAfter).toBe(20); // 30 − 10, enemy survived
-    expect(res.enemyAction).toEqual({ type: 'attack', value: 6 }); // telegraph fired
-    expect(res.playerHpAfter).toBe(0); // 5 − 6 floored at 0 (no underflow)
+    expect(res.damage).toBe(3); // G normal (1.0×) 3-match: 3 × 1.0 × 1.0
+    expect(res.enemyHpAfter).toBe(27); // 30 − 3, enemy survived
+    expect(res.enemyAction).toEqual({ type: 'attack', value: 8 }); // telegraph fired
+    expect(res.playerHpAfter).toBe(0); // 5 − 8 floored at 0 (no underflow)
     expect(res.status).toBe('lost');
     expect(res.state.status).toBe('lost');
   });
@@ -131,9 +131,9 @@ describe('overheal is capped at max HP', () => {
     // Skeleton at intentIndex 1 telegraphs CHARGE (0 dmg) so the heal is isolated.
     const state = makeState({
       enemyId: 'skeleton',
-      enemyHp: 55,
-      enemyMaxHp: 55,
-      playerHp: 58,
+      enemyHp: 120,
+      enemyMaxHp: 120,
+      playerHp: 59,
       playerMaxHp: 60,
       intentIndex: 1,
       rngState: createRng(0),
@@ -141,9 +141,9 @@ describe('overheal is capped at max HP', () => {
     });
     const res = playTurn(state, LEFT_PATH, scriptedSource(['Y', 'G', 'Y']));
 
-    expect(res.heal).toBe(5); // rolled heal (5 × 1.0 × 1.0)
+    expect(res.heal).toBe(2); // rolled heal (2 × 1.0 × 1.0)
     expect(res.enemyAction).toEqual({ type: 'charge', value: 0 }); // charge, no player damage
-    expect(res.playerHpAfter).toBe(60); // 58 + 5 capped at 60, not 63
+    expect(res.playerHpAfter).toBe(60); // 59 + 2 capped at 60, not 61
     expect(res.status).toBe('ongoing');
   });
 });
@@ -164,11 +164,11 @@ describe('multi-wave + affinity + cascade integration through playTurn', () => {
 
     expect(res.groups).toHaveLength(2);
     expect(res.cascadeMultiplier).toBe(1.25); // 2 combos
-    // G normal (10) + R weak (20) = 30 base, × 1.25 = 37.5 → round 38.
-    expect(res.damage).toBe(38);
-    expect(res.enemyHpAfter).toBe(62); // 100 − 38
-    expect(res.enemyAction).toEqual({ type: 'attack', value: 6 });
-    expect(res.playerHpAfter).toBe(54); // 60 − 6
+    // G normal (3) + R weak (6) = 9 base, × 1.25 = 11.25 → round 11.
+    expect(res.damage).toBe(11);
+    expect(res.enemyHpAfter).toBe(89); // 100 − 11
+    expect(res.enemyAction).toEqual({ type: 'attack', value: 8 });
+    expect(res.playerHpAfter).toBe(52); // 60 − 8
     expect(res.status).toBe('ongoing');
   });
 });
@@ -183,8 +183,8 @@ describe('intents are trustworthy — every fired action matches its prior teleg
   it("skeleton: transcript wraps attack8 → charge → attack14 and telegraphs are honest", () => {
     let state = makeState({
       enemyId: 'skeleton',
-      enemyHp: 55,
-      enemyMaxHp: 55,
+      enemyHp: 120,
+      enemyMaxHp: 120,
       playerHp: 999,
       playerMaxHp: 999,
       board: CHECKER,
@@ -200,10 +200,10 @@ describe('intents are trustworthy — every fired action matches its prior teleg
     expect(fired).toEqual([
       { type: 'attack', value: 8 },
       { type: 'charge', value: 0 },
-      { type: 'attack', value: 14 },
+      { type: 'attack', value: 16 },
       { type: 'attack', value: 8 }, // cycle wraps
       { type: 'charge', value: 0 },
-      { type: 'attack', value: 14 },
+      { type: 'attack', value: 16 },
       { type: 'attack', value: 8 },
     ]);
   });
@@ -211,8 +211,8 @@ describe('intents are trustworthy — every fired action matches its prior teleg
   it('bat: transcript alternates attack4 ↔ self-heal5 (heal capped at max HP)', () => {
     let state = makeState({
       enemyId: 'bat',
-      enemyHp: 40,
-      enemyMaxHp: 40,
+      enemyHp: 90,
+      enemyMaxHp: 90,
       playerHp: 999,
       playerMaxHp: 999,
       board: CHECKER,
@@ -221,15 +221,15 @@ describe('intents are trustworthy — every fired action matches its prior teleg
     for (let t = 0; t < 4; t++) {
       const res = playTurn(state, t % 2 === 0 ? swapRight : swapBack);
       fired.push(res.enemyAction);
-      // On its heal turn the bat is already at max HP → stays capped at 40.
-      expect(res.enemyHpAfter).toBe(40);
+      // On its heal turn the bat is already at max HP → stays capped at 90.
+      expect(res.enemyHpAfter).toBe(90);
       state = res.state;
     }
     expect(fired).toEqual([
-      { type: 'attack', value: 4 },
-      { type: 'heal', value: 5 },
-      { type: 'attack', value: 4 },
-      { type: 'heal', value: 5 },
+      { type: 'attack', value: 6 },
+      { type: 'heal', value: 8 },
+      { type: 'attack', value: 6 },
+      { type: 'heal', value: 8 },
     ]);
   });
 });

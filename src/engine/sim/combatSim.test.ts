@@ -4,9 +4,11 @@
  * Like sim.test.ts for the board harness, these lock in the CURRENT combat
  * engine + bot behavior on small fixed-seed runs (seed 42, 50 encounters) so that
  * `npm test` fails loudly if a change to the combat engine, either combat bot, or a
- * combat CONSTANT shifts the balance numbers. Expected values were recorded from real
- * runs under the DEFAULT combat config; if the config or engine legitimately changes,
- * re-record them and note why in the Verification Log.
+ * combat CONSTANT shifts the balance numbers. Expected values were re-recorded from
+ * real runs under the DEFAULT combat config after the 2026-07-15 "Combat
+ * recalibration" (ATTACK_BASE 3, HEAL_BASE 2, enemy HP/attack scaled up); if the
+ * config or engine legitimately changes again, re-record them and note why in the
+ * Verification Log.
  *
  * Also unit-tests the greedy bot's objective scorer (scoreFirstWave) with
  * hand-computed values so the affinity/heal weighting is pen-and-paper verifiable.
@@ -48,38 +50,40 @@ describe('combat sim — greedy-combat fixed-seed regression (50 encounters, see
   it('greedy-combat beats each enemy with the recorded win counts and medians', () => {
     const slime = run('slime', 'greedy-combat', 50);
     expect(slime.wins).toBe(50);
-    expect(slime.totalMoves).toBe(55);
-    expect(slime.medianTurnsToWin).toBe(1);
-    expect(slime.avgDamagePerMove.toFixed(4)).toBe('70.0727');
+    expect(slime.totalMoves).toBe(231);
+    expect(slime.medianTurnsToWin).toBe(5);
+    expect(slime.avgDamagePerMove.toFixed(4)).toBe('20.3593');
 
     const skeleton = run('skeleton', 'greedy-combat', 50);
-    expect(skeleton.wins).toBe(50);
-    expect(skeleton.totalMoves).toBe(70);
-    expect(skeleton.medianTurnsToWin).toBe(1);
+    expect(skeleton.wins).toBe(47);
+    expect(skeleton.totalMoves).toBe(331);
+    expect(skeleton.medianTurnsToWin).toBe(7);
 
     const bat = run('bat', 'greedy-combat', 50);
     expect(bat.wins).toBe(50);
-    expect(bat.totalMoves).toBe(60);
-    expect(bat.medianTurnsToWin).toBe(1);
+    expect(bat.totalMoves).toBe(338);
+    expect(bat.medianTurnsToWin).toBe(7);
   });
 });
 
 describe('combat sim — random baseline fixed-seed regression (50 encounters, seed 42)', () => {
   it('random bot posts the recorded win counts and medians per enemy', () => {
+    // Under the recalibrated curve the enemy-agnostic random bot is shut out over this
+    // 50-game seed-42 subset (median-to-win is 0 = no wins) — the skill signal.
     const slime = run('slime', 'random', 50);
-    expect(slime.wins).toBe(30);
-    expect(slime.totalMoves).toBe(384);
-    expect(slime.medianTurnsToWin).toBe(6);
+    expect(slime.wins).toBe(0);
+    expect(slime.totalMoves).toBe(404);
+    expect(slime.medianTurnsToWin).toBe(0);
 
     const skeleton = run('skeleton', 'random', 50);
-    expect(skeleton.wins).toBe(7);
-    expect(skeleton.totalMoves).toBe(437);
-    expect(skeleton.medianTurnsToWin).toBe(8);
+    expect(skeleton.wins).toBe(0);
+    expect(skeleton.totalMoves).toBe(450);
+    expect(skeleton.medianTurnsToWin).toBe(0);
 
     const bat = run('bat', 'random', 50);
-    expect(bat.wins).toBe(39);
-    expect(bat.totalMoves).toBe(893);
-    expect(bat.medianTurnsToWin).toBe(12);
+    expect(bat.wins).toBe(0);
+    expect(bat.totalMoves).toBe(1034);
+    expect(bat.medianTurnsToWin).toBe(0);
   });
 });
 
@@ -112,7 +116,7 @@ describe('combat sim — determinism', () => {
 describe('scoreFirstWave — greedy objective is hand-computable', () => {
   const CFG = DEFAULT_COMBAT_CONFIG;
 
-  /** Weights for a slime (weak R = 2.0×): R base 20, other damage 10, heal healBase×weight. */
+  /** Weights for a slime (weak R = 2.0×): R base 6, other damage 3, heal healBase×weight. */
   function slimeWeights(healWeight: number) {
     const colorBase = new Float64Array(TILE_COLORS.length);
     colorBase[CODE.R] = CFG.attackBase * 2.0; // weak
@@ -123,35 +127,35 @@ describe('scoreFirstWave — greedy objective is hand-computable', () => {
     return { colorBase, groupSizeBonus: CFG.groupSizeBonus, cascadeBonus: CFG.cascadeBonus };
   }
 
-  it('scores a single weak-color 3-match at attackBase × affinity (=20 for slime R)', () => {
+  it('scores a single weak-color 3-match at attackBase × affinity (=6 for slime R)', () => {
     // 3x3 board, top row R,R,R (a horizontal triple), rest non-matching.
     const codes = new Uint8Array([
       CODE.R, CODE.R, CODE.R,
       CODE.G, CODE.B, CODE.Y,
       CODE.B, CODE.Y, CODE.G,
     ]);
-    // one group, size 3, weak R: 10×2×(1+0.25×0) = 20; combos 1 → ×1.
-    expect(scoreFirstWave(codes, 3, 3, slimeWeights(0))).toBe(20);
+    // one group, size 3, weak R: 3×2×(1+0.25×0) = 6; combos 1 → ×1.
+    expect(scoreFirstWave(codes, 3, 3, slimeWeights(0))).toBe(6);
   });
 
-  it('rewards a larger group via the size bonus (R 4-match = 10×2×1.25 = 25)', () => {
+  it('rewards a larger group via the size bonus (R 4-match = 3×2×1.25 = 7.5)', () => {
     // 4x2 board, top row R,R,R,R.
     const codes = new Uint8Array([
       CODE.R, CODE.R, CODE.R, CODE.R,
       CODE.G, CODE.B, CODE.Y, CODE.G,
     ]);
-    expect(scoreFirstWave(codes, 4, 2, slimeWeights(0))).toBe(25);
+    expect(scoreFirstWave(codes, 4, 2, slimeWeights(0))).toBe(7.5);
   });
 
-  it('two groups lift each other via the cascade multiplier (2×20 base × 1.25 = 50)', () => {
+  it('two groups lift each other via the cascade multiplier (2×6 base × 1.25 = 15)', () => {
     // 3x3: row0 R,R,R and row2 R,R,R → two separate weak-R triples, combos = 2.
     const codes = new Uint8Array([
       CODE.R, CODE.R, CODE.R,
       CODE.G, CODE.B, CODE.Y,
       CODE.R, CODE.R, CODE.R,
     ]);
-    // value 20+20 = 40; cascade 1+0.25×(2−1) = 1.25 → 50.
-    expect(scoreFirstWave(codes, 3, 3, slimeWeights(0))).toBe(50);
+    // value 6+6 = 12; cascade 1+0.25×(2−1) = 1.25 → 15.
+    expect(scoreFirstWave(codes, 3, 3, slimeWeights(0))).toBe(15);
   });
 
   it('heal groups score 0 when healthy (weight 0) but positive when hurt (weight 1)', () => {
@@ -162,7 +166,7 @@ describe('scoreFirstWave — greedy objective is hand-computable', () => {
       CODE.B, CODE.Y, CODE.G,
     ]);
     expect(scoreFirstWave(codes, 3, 3, slimeWeights(0))).toBe(0); // healthy: heal ignored
-    expect(scoreFirstWave(codes, 3, 3, slimeWeights(1))).toBe(5); // hurt: healBase 5 × 1
+    expect(scoreFirstWave(codes, 3, 3, slimeWeights(1))).toBe(2); // hurt: healBase 2 × 1
   });
 
   it('returns 0 for a board with no matches', () => {

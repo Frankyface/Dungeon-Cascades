@@ -7,8 +7,8 @@ import * as combat from './index';
 
 describe('combat barrel — public API surface', () => {
   it('re-exports the constants, helpers, and state machine', () => {
-    expect(combat.ATTACK_BASE).toBe(10);
-    expect(combat.HEAL_BASE).toBe(5);
+    expect(combat.ATTACK_BASE).toBe(3);
+    expect(combat.HEAL_BASE).toBe(2);
     expect(combat.GROUP_SIZE_BONUS).toBe(0.25);
     expect(combat.CASCADE_BONUS).toBe(0.25);
     expect(combat.PLAYER_MAX_HP).toBe(60);
@@ -16,7 +16,7 @@ describe('combat barrel — public API surface', () => {
     expect(combat.AFFINITY_NORMAL).toBe(1.0);
     expect(combat.AFFINITY_RESIST).toBe(0.5);
     expect(combat.AFFINITY_IMMUNE).toBe(0.0);
-    expect(combat.DEFAULT_COMBAT_CONFIG.attackBase).toBe(10);
+    expect(combat.DEFAULT_COMBAT_CONFIG.attackBase).toBe(3);
     expect([...combat.ENEMY_IDS].sort()).toEqual(['bat', 'skeleton', 'slime']);
     expect(typeof combat.startEncounter).toBe('function');
     expect(typeof combat.playTurn).toBe('function');
@@ -26,9 +26,9 @@ describe('combat barrel — public API surface', () => {
     expect(typeof combat.scriptStep).toBe('function');
     expect(typeof combat.nextIntentIndex).toBe('function');
     expect(typeof combat.initialTelegraph).toBe('function');
-    expect(combat.getEnemy('slime').maxHp).toBe(30);
+    expect(combat.getEnemy('slime').maxHp).toBe(80);
     expect(combat.TILE_EFFECTS.P.kind).toBe('heal');
-    expect(combat.ENEMY_STATS.bat.maxHp).toBe(40);
+    expect(combat.ENEMY_STATS.bat.maxHp).toBe(90);
   });
 
   it('drives a full encounter to a terminal state via the barrel API only', () => {

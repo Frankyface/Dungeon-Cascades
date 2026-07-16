@@ -1,5 +1,5 @@
 # Feature: Combat Resolution (combo → damage/heal, HP, win/lose)
-_Stage: 2 — Combat · Status: in progress_
+_Stage: 2 — Combat · Status: awaiting verification (all automated gates passed; Cam's on-device win remains)_
 
 ## Goal
 Turn a resolved drag-move into combat outcomes using the decided taxonomy (offense-first affinity: R/G/B/Y
@@ -56,6 +56,18 @@ one playable fight — the thing Cam beats on-device to clear Stage 2.
   splits into independent board/refill streams per the board engine's contract.
 - REMAINING before verified done: the sim balance bands (win rates, turns-to-win, determinism diff — the
   combat-sim feature runs these) and Cam beating a scripted encounter on-device.
+
+### 2026-07-15 — Recalibration verified; ALL automated gates pass — only Cam's on-device win remains
+- Recalibrated per the decisions.md "Combat recalibration" entry: ATTACK_BASE 10→3, HEAL_BASE 5→2,
+  slime 80 HP/atk 8, skeleton 120 HP/[8,charge,16], bat 90 HP/[atk 6,heal 8]. All combat fixtures
+  hand-recomputed (arithmetic audited — incl. the single-rounding discriminator: (3.75+3.75)×1.25=9.375→9).
+- **Amended band results (500 games, seed 42, manager re-ran spot-checks independently):**
+  greedy-combat: slime 100% / median 5 · skeleton 96.6% / median 7 · bat 100% / median 7 — all in band.
+  random: slime 0.6% · skeleton 0.0% · bat 0.4% — skill dominates (band: ≤40% on ≥2).
+- Determinism: combat report byte-identical across repeat runs (manager-diffed). Stage 1 board baseline
+  byte-identical (avg combos/move 3.4309). `npm test` 24 suites / 189 tests green; tsc clean;
+  src/engine coverage ≥80% both metrics.
+- One UI drift-guard fixture updated by the manager (slime telegraph 6→8, authorized recalibration value).
 
 ## Open Questions
 - Does 60 player HP + these enemy numbers create real jeopardy for a mid-skill human (bots bracket the

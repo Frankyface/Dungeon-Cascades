@@ -43,7 +43,7 @@ describe('initCombatState', () => {
     expect(s.display).toEqual(s.combat.board);
     expect(s.combat.playerHp).toBe(s.combat.playerMaxHp);
     expect(s.combat.enemyHp).toBe(s.combat.enemyMaxHp);
-    expect(s.combat.telegraph).toEqual({ type: 'attack', value: 6 }); // Slime script
+    expect(s.combat.telegraph).toEqual({ type: 'attack', value: 8 }); // Slime script (recalibrated 2026-07-15)
     expect(s.combat.status).toBe('ongoing');
     expect(s.lastResolution).toBeNull();
     expect(s.timer.status).toBe('idle');

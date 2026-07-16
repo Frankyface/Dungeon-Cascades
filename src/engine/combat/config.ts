@@ -2,11 +2,12 @@
  * Combat configuration — ALL tunable constants of the Stage-2 combat layer in one
  * module, so balancing is a single-file change.
  *
- * The starting values are the docs/decisions.md "Combat math defaults" (2026-07-15)
- * and "Enemy Encounters" spec numbers. The later combat-sim feature is the tuning
- * instrument: it MAY tune any constant here within roughly ±50% of its default to
- * hit the win-rate / turns-to-win balance bands, then record the final values +
- * report in the feature's Verification Log. The combat ENGINE reads these values;
+ * The values are the docs/decisions.md 2026-07-15 "Combat recalibration" numbers
+ * (which superseded the original "Combat math defaults" after first sim contact). The
+ * combat-sim feature is the tuning instrument, bounded by that decision: ATTACK_BASE
+ * 2–5, HEAL_BASE 1–3, GROUP_SIZE_BONUS / CASCADE_BONUS / PLAYER_MAX_HP unchanged,
+ * enemy HP 40–300, enemy attack 4–20, enemy self-heal 4–12. Final values + the band
+ * report live in the feature's Verification Log. The combat ENGINE reads these values;
  * it never hardcodes them, so a sim sweep only edits this file.
  *
  * PURE ENGINE: no React / React Native imports; no wall-clock or ambient
@@ -17,10 +18,10 @@ import type { AffinityTable, EnemyAction, EnemyId } from './types';
 // ── Combat math scalars (decisions.md defaults) ──────────────────────────────
 
 /** Base damage of a minimum (3-tile) damage group before size/affinity/cascade. */
-export const ATTACK_BASE = 10;
+export const ATTACK_BASE = 3;
 
 /** Base heal of a minimum (3-tile) heal group before size/cascade. */
-export const HEAL_BASE = 5;
+export const HEAL_BASE = 2;
 
 /** Per-extra-tile bonus: a group's amount scales by `1 + this × (size − 3)`. */
 export const GROUP_SIZE_BONUS = 0.25;
@@ -80,32 +81,34 @@ export interface EnemyStats {
 }
 
 /**
- * The three Stage-2 enemies (feature-enemy-encounters.md shapes):
- * - Slime:    low HP, weak R, no resists;   attack 6 every turn.
- * - Skeleton: mid HP, resist R, weak B;     attack 8 → charge → attack 14, cyclic.
- * - Bat:      low-mid HP, weak G, resist B;  attack 4 ↔ self-heal 5, alternating.
+ * The three Stage-2 enemies (feature-enemy-encounters.md shapes, recalibrated per the
+ * docs/decisions.md 2026-07-15 "Combat recalibration" entry — HP scaled up to match
+ * the retuned ATTACK_BASE 3 damage curve; affinity spreads and script SHAPES unchanged):
+ * - Slime:    intro HP, weak R, no resists;  attack 8 every turn.
+ * - Skeleton: mid HP, resist R, weak B;      attack 8 → charge → attack 16, cyclic.
+ * - Bat:      mid HP, weak G, resist B;       attack 6 ↔ self-heal 8, alternating.
  */
 export const ENEMY_STATS: Record<EnemyId, EnemyStats> = {
   slime: {
-    maxHp: 30,
+    maxHp: 80,
     affinity: { R: AFFINITY_WEAK },
-    script: [{ type: 'attack', value: 6 }],
+    script: [{ type: 'attack', value: 8 }],
   },
   skeleton: {
-    maxHp: 55,
+    maxHp: 120,
     affinity: { R: AFFINITY_RESIST, B: AFFINITY_WEAK },
     script: [
       { type: 'attack', value: 8 },
       { type: 'charge', value: 0 },
-      { type: 'attack', value: 14 },
+      { type: 'attack', value: 16 },
     ],
   },
   bat: {
-    maxHp: 40,
+    maxHp: 90,
     affinity: { G: AFFINITY_WEAK, B: AFFINITY_RESIST },
     script: [
-      { type: 'attack', value: 4 },
-      { type: 'heal', value: 5 },
+      { type: 'attack', value: 6 },
+      { type: 'heal', value: 8 },
     ],
   },
 };

@@ -27,8 +27,9 @@ intent, and turn-based combat resolves your drag-move into damage/block against 
       Verification Log, 2026-07-15)
 - [x] At least one **enemy with a telegraphed intent** exists (three do), and combat runs turn-based.
       (evidence: feature-enemy-encounters.md Verification Log, 2026-07-15)
-- [ ] **Sim balance bands pass** (greedy-combat ≥80% win, random ≤40% on 2+, turns-to-win median 4–12,
-      byte-deterministic reports — see feature-combat-resolution.md).
+- [x] **Sim balance bands pass** (amended per decisions.md recalibration): greedy 96.6–100% win at
+      medians 5–7, random ≤0.6%, byte-deterministic. (evidence: feature-combat-resolution.md Verification
+      Log, 2026-07-15)
 - [ ] Cam can **beat a scripted encounter on-device** — a full win by playing drag-path moves. (Human gate.)
 
 ## Notes
