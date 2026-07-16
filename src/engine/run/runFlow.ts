@@ -164,7 +164,9 @@ export interface EncounterTurnResult {
 
 /**
  * Play one combat turn. Threads relic modifiers + the difficulty scalar/boss enemy through
- * combat (the boss re-syncs its phase — and its affinity shift — before the move). A win pays
+ * combat (the boss re-syncs its phase — and its affinity shift — at the END of the turn that
+ * crossed an HP threshold, so the outgoing telegraph always belongs to the acting phase). A
+ * win pays
  * performance-scaled gold and opens a draft (fight/elite) or ends the run in victory (boss); a
  * loss (player HP ≤ 0) ends the run in defeat.
  */
@@ -176,11 +178,14 @@ export function playEncounterTurn(state: RunState, path: Path, options: RunOptio
 
   let encounter = phase.encounter;
   let bossPhase = phase.bossPhase;
+  const isBoss = phase.encounterKind === 'boss';
+  const bossDiff = isBoss ? difficultyAt(currentNode(state.map, state.mapState).floor) : 0;
 
-  // Boss: re-sync the phase (and its affinity shift) to current HP before the move.
-  if (phase.encounterKind === 'boss') {
-    const node = currentNode(state.map, state.mapState);
-    const sync = syncBossPhase(encounter, bossPhase, encounter.enemyMaxHp, difficultyAt(node.floor));
+  // Boss: defensive pre-move re-sync. Since the end-of-turn sync below (fix 2026-07-16) keeps
+  // the stored phase/telegraph in step with HP, this is a NO-OP for any state this engine
+  // produces — it only corrects a legacy save persisted mid-transition by a pre-fix build.
+  if (isBoss) {
+    const sync = syncBossPhase(encounter, bossPhase, encounter.enemyMaxHp, bossDiff);
     encounter = sync.encounter;
     bossPhase = sync.phase;
   }
@@ -218,10 +223,29 @@ export function playEncounterTurn(state: RunState, path: Path, options: RunOptio
     return { state: { ...won, phase: phaseNext }, resolution };
   }
 
-  // Ongoing: keep fighting (thread the re-synced boss phase forward).
+  // Ongoing: keep fighting. Boss: re-sync the phase NOW — at the END of the turn whose damage
+  // may have crossed an HP threshold — so the telegraph stored (and shown) after this turn
+  // already belongs to the phase that will actually act ("what you see is what fires" holds
+  // across phase transitions; the fired action itself is unchanged — the new phase's script[0]
+  // fired on the next turn either way, it just used to be un-telegraphed). `syncBossPhase`
+  // reads the desired phase straight from current HP, so a turn crossing TWO thresholds swaps
+  // directly from phase 0 to phase 2. After a swap the new phase starts at intentIndex 0 with
+  // script[0] telegraphed — a clean, fully visible opening for the new script. The returned
+  // resolution mirrors the synced state/telegraph so the UI animates exactly what will fire,
+  // and save/load mid-transition persists the already-synced encounter (transcript equality).
+  let nextEncounter = resolution.state;
+  let outResolution = resolution;
+  if (isBoss) {
+    const sync = syncBossPhase(nextEncounter, bossPhase, nextEncounter.enemyMaxHp, bossDiff);
+    if (sync.phase !== bossPhase) {
+      nextEncounter = sync.encounter;
+      bossPhase = sync.phase;
+      outResolution = { ...resolution, state: nextEncounter, telegraph: nextEncounter.telegraph };
+    }
+  }
   return {
-    state: { ...withHp, phase: { kind: 'combat', encounter: resolution.state, encounterKind: phase.encounterKind, bossPhase } },
-    resolution,
+    state: { ...withHp, phase: { kind: 'combat', encounter: nextEncounter, encounterKind: phase.encounterKind, bossPhase } },
+    resolution: outResolution,
   };
 }
 

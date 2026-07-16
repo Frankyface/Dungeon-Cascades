@@ -1,4 +1,5 @@
 import { boardFromRows, boardToRows } from './board';
+import { MAX_CASCADE_WAVES } from './config';
 import { createBoard } from './create';
 import { resolveMove } from './resolve';
 import { findMatches } from './match';
@@ -131,6 +132,29 @@ describe('resolveMove — hand-computed fixtures', () => {
         expect(fall.from.col).toBe(fall.to.col);
       }
     }
+  });
+});
+
+describe('resolveMove — cascade wave cap (defensive)', () => {
+  it('exports a generous cap far above any real cascade', () => {
+    expect(MAX_CASCADE_WAVES).toBeGreaterThanOrEqual(100);
+  });
+
+  it('throws a descriptive error when a pathological source cascades forever', () => {
+    // A broken TileSource that only ever emits R: every refill re-matches, so the
+    // cascade never stabilizes. The cap must convert that infinite loop into a throw.
+    const alwaysRed: TileSource = {
+      next(state: RngState) {
+        return { color: 'R', state };
+      },
+    };
+    // Known-matching fixture (same board/path as the 2-wave cascade test above).
+    const board = boardFromRows(['YBP', 'RRG', 'GGY', 'BRP', 'PRB']);
+    const path: Path = { start: { col: 2, row: 1 }, steps: ['down'] };
+
+    expect(() => resolveMove(board, path, createRng(0), alwaysRed)).toThrow(
+      /MAX_CASCADE_WAVES.*TileSource/s,
+    );
   });
 });
 

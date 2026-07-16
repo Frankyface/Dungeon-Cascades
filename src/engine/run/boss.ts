@@ -109,6 +109,17 @@ export interface BossSyncResult {
  * unchanged the encounter is returned untouched (same reference); when it changes, the
  * `enemy` override is swapped to the new phase and the intent is reset to the phase's first
  * action (a clean telegraph for the new script). Pure; never mutates input.
+ *
+ * Semantics after a swap (fairness contract, fix 2026-07-16):
+ * - `intentIndex` is reset to 0: each phase's script is a fresh cycle — the old phase's
+ *   cursor is meaningless against the new script (which may be a different length), and
+ *   starting at `script[0]` gives the player a fully visible opening move for the new phase.
+ * - The desired phase reads DIRECTLY from the HP fraction, so one turn that crosses two
+ *   thresholds swaps straight from phase 0 to phase 2 (no phase-1 stopover).
+ * - The run layer calls this at the END of the turn that changed the boss's HP, so the
+ *   telegraph stored/shown after that turn is exactly what fires next turn ("what you see
+ *   is what fires" holds across phase transitions, and a mid-transition save reloads to
+ *   the identical telegraph).
  */
 export function syncBossPhase(
   encounter: CombatState,

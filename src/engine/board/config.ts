@@ -44,3 +44,12 @@ export type Direction = (typeof DIRECTIONS)[number];
  * pathological input. Generous relative to the 30-cell board; cheap to tune.
  */
 export const MAX_PATH_STEPS = 32;
+
+/**
+ * Defensive cap on cascade waves in one move resolution. The uniform tile source
+ * stabilizes in a handful of waves (a 30-cell board physically cannot sustain long
+ * chains), so exceeding this means an injected `TileSource` is broken (e.g. always
+ * emitting one color, re-matching forever) — `resolveMove` THROWS rather than
+ * spinning: that is a programming error, not a reachable game state.
+ */
+export const MAX_CASCADE_WAVES = 100;

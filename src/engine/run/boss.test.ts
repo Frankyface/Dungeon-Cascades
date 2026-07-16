@@ -80,4 +80,13 @@ describe('syncBossPhase — re-sync on a phase change', () => {
     expect(synced.encounter.intentIndex).toBe(0);
     expect(synced.encounter.telegraph).toEqual(BOSS_PHASES[1].script[0]);
   });
+
+  it('jumps straight from phase 0 to phase 2 when one turn crosses BOTH thresholds', () => {
+    const enc = startEncounter(BOSS_NOMINAL_ENEMY_ID, 1, undefined, undefined, bossEnemyForPhase(0, 185, 1.0));
+    const gutted = { ...enc, enemyHp: 10, enemyMaxHp: 185 }; // ~5% ⇒ phase 2 directly
+    const synced = syncBossPhase(gutted, 0, 185, 1.0);
+    expect(synced.phase).toBe(2); // desired phase reads straight from HP — no phase-1 stopover
+    expect(synced.encounter.intentIndex).toBe(0);
+    expect(synced.encounter.telegraph).toEqual(BOSS_PHASES[2].script[0]);
+  });
 });

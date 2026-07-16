@@ -8,6 +8,7 @@
  * state. Same inputs ⇒ same output, always.
  */
 import { applyPath, validatePath } from './path';
+import { MAX_CASCADE_WAVES } from './config';
 import { findMatches } from './match';
 import { collapse } from './gravity';
 import { uniformTileSource } from './tileSource';
@@ -39,11 +40,18 @@ export function resolveMove(
   let state = rngState;
   let totalCombos = 0;
 
-  // Cascade until the board is stable (no more matches).
+  // Cascade until the board is stable (no more matches). The wave cap is purely
+  // defensive: only a broken injected TileSource can cascade past it (see config.ts).
   for (;;) {
     const clearedGroups = findMatches(current);
     if (clearedGroups.length === 0) {
       break;
+    }
+    if (waves.length >= MAX_CASCADE_WAVES) {
+      throw new Error(
+        `resolveMove: cascade exceeded MAX_CASCADE_WAVES (${MAX_CASCADE_WAVES}) — ` +
+          'the injected TileSource keeps producing matches and the board never stabilizes',
+      );
     }
 
     const cleared: Position[] = [];
