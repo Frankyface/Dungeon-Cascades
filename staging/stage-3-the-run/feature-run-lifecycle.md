@@ -1,5 +1,5 @@
 # Feature: Run Lifecycle (run state, boss, save/load, death & victory, full-run sim)
-_Stage: 3 — The Run · Status: not started_
+_Stage: 3 — The Run · Status: in progress (engine verified; full-run sim gates + Cam's on-device run remain)_
 
 ## Goal
 Stitch map + combat + relics + economy into one complete, persistent run: start → route through the map →
@@ -41,7 +41,15 @@ Stage 4 balance instrument.
    mid-run.
 
 ## Verification Log
-(empty until verification actually happens — a feature with an empty log can never be `verified done`)
+### 2026-07-15 — Engine portion verified (manager re-ran gates) — sim CLI gates + Cam's run remain
+- RunState lossless round-trip; save→load→continue ≡ straight-through (transcript equality); terminal
+  states reject actions; save cleared on any terminal. Boss "Bone Colossus": 3 HP-phase scripts with an
+  affinity SHIFT (R-weak → R-resist/B-weak → Y-weak), 120→185 HP by floor, max hit 26. Elite/difficulty
+  scaling dampened (hp ×(1+(diff−1)·0.2), atk ×(1+(diff−1)·0.15); elite ×1.3/×1.2). Floor-0 always intro
+  slime. 20-seed full-run batch: zero wedges, both victory and defeat observed; greedy policy ≈34% win
+  over 100 seeds (inside 25–75% band, pre-CLI). Combat seam extended minimally (optional CombatState.enemy
+  override for phase shifts) — combat suite unmodified, baselines byte-identical.
+- REMAINING: the full-run sim CLI gates (1000 runs, determinism diff — next agent) and Cam's on-device run.
 
 ## Open Questions
 - Boss identity/flavor (Bone Colossus?) and whether its affinity-shift phase reads clearly in the UI.
