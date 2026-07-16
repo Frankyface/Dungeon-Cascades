@@ -1,15 +1,17 @@
 /**
- * The root menu: the Stage-1 fun-gate "Naked Board" (kept reachable) plus a fight
- * entry per enemy. The enemy list is driven by the engine registry (`ENEMY_IDS` +
- * `getEnemy`) so it stays in sync, and each row previews the enemy's weakness so the
- * "engineer the right color" goal is visible before the fight starts.
+ * The root menu. The headline entry is THE RUN (Stage 3): start a fresh rogue-lite run, or —
+ * when a saved run exists (checked by hydrating the storage adapter on mount) — Continue it or
+ * Abandon it. Below that, the Stage-1/2 sandbox stays reachable: the "Naked Board" and a fight
+ * per enemy (driven by the engine registry so it stays in sync, each row previewing the weakness).
  */
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ENEMY_IDS, getEnemy } from '../../engine/combat';
 import type { EnemyId } from '../../engine/combat';
 import { COMBAT_COLORS } from '../combat/combatColors';
 import { ENEMY_GLYPH, buildAffinityChips, enemyName } from '../combat/combatFormat';
+import { hydrateRunStore, runStore, stageNewRun, stageResumeRun } from '../run/runController';
 
 function weaknessHint(enemyId: EnemyId): string {
   const chips = buildAffinityChips(getEnemy(enemyId).affinity);
@@ -21,17 +23,84 @@ function weaknessHint(enemyId: EnemyId): string {
 
 export function MenuScreen() {
   const router = useRouter();
+  const [hasSave, setHasSave] = useState(false);
+
+  // Cold-start: load the saved run from disk into the store mirror so we know whether to offer
+  // Continue. Runs once on mount; a failed read is treated as "no save".
+  useEffect(() => {
+    let active = true;
+    hydrateRunStore()
+      .then((saved) => {
+        if (active) setHasSave(saved !== null);
+      })
+      .catch(() => {
+        if (active) setHasSave(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const startNewRun = (): void => {
+    stageNewRun();
+    setHasSave(true);
+    router.push('/run');
+  };
+
+  const continueRun = (): void => {
+    if (stageResumeRun() === null) {
+      setHasSave(false);
+      return;
+    }
+    router.push('/run');
+  };
+
+  const abandonRun = (): void => {
+    runStore().clear();
+    setHasSave(false);
+  };
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Text style={styles.title}>Dungeon Cascades</Text>
-        <Text style={styles.subtitle}>Stage 2 · Combat</Text>
+        <Text style={styles.subtitle}>Stage 3 · The Run</Text>
       </View>
+
+      <Text style={styles.sectionLabel}>The Run</Text>
+
+      {hasSave ? (
+        <>
+          <Pressable
+            onPress={continueRun}
+            style={({ pressed }) => [styles.card, styles.runCard, pressed && styles.pressed]}
+          >
+            <Text style={styles.cardTitle}>▶ Continue run</Text>
+            <Text style={styles.cardHint}>Pick up your saved run where you left off</Text>
+          </Pressable>
+          <Pressable onPress={abandonRun} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+            <Text style={styles.cardTitle}>🗑 Abandon run</Text>
+            <Text style={styles.cardHint}>Delete the save and clear the slot</Text>
+          </Pressable>
+        </>
+      ) : (
+        <Pressable
+          onPress={startNewRun}
+          style={({ pressed }) => [styles.card, styles.runCard, pressed && styles.pressed]}
+        >
+          <Text style={styles.cardTitle}>⚔ Start a run</Text>
+          <Text style={styles.cardHint}>Climb the dungeon: fights, relics, shops — one life</Text>
+        </Pressable>
+      )}
+
+      {hasSave ? (
+        <Pressable onPress={startNewRun} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+          <Text style={styles.cardTitle}>✦ Start a new run</Text>
+          <Text style={styles.cardHint}>Abandon the current save and begin fresh</Text>
+        </Pressable>
+      ) : null}
+
+      <Text style={styles.sectionLabel}>Sandbox</Text>
 
       <Pressable
         onPress={() => router.push('/board')}
@@ -107,6 +176,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 18,
     gap: 4,
+  },
+  runCard: {
+    borderColor: '#4a5490',
   },
   boardCard: {
     borderColor: '#38406e',

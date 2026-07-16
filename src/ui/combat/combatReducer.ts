@@ -57,9 +57,16 @@ export type CombatScreenAction =
   | { readonly type: 'boardResolved'; readonly resolution: TurnResolution }
   | { readonly type: 'turnSettled' };
 
-/** Build the initial screen state for an encounter (fresh board, full HP). */
-export function initCombatState(enemyId: EnemyId, seed: number): CombatScreenState {
-  const combat = startEncounter(enemyId, seed);
+/**
+ * Build the initial screen state for an encounter (fresh board, full HP). Pass `combat` to
+ * seed the reducer from an EXTERNALLY-MANAGED encounter (the run layer's scaled / boss enemy
+ * with relic combat-start effects already applied); omit it for a plain standalone fight.
+ */
+export function initCombatState(
+  enemyId: EnemyId,
+  seed: number,
+  combat: CombatState = startEncounter(enemyId, seed),
+): CombatScreenState {
   return {
     enemyId,
     seed,

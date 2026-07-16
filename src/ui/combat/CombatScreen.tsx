@@ -11,13 +11,14 @@
  *   telegraphed action fires, animating the player HP change) → turnSettled →
  *   idle / won / lost. Terminal phases lock input and show the overlay.
  */
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue, withTiming } from 'react-native-reanimated';
 import { indexOf, tileAt } from '../../engine/board';
+import type { Path } from '../../engine/board';
 import { playTurn } from '../../engine/combat';
-import type { EnemyId, TurnResolution } from '../../engine/combat';
+import type { AffinityTable, CombatState, EnemyId, TurnResolution } from '../../engine/combat';
 import { ANIM, MOVE_TIMER_MS, PICKUP_SCALE } from '../board/constants';
 import { computeBoardLayout, cellCenter, pixelToCell } from '../board/layout';
 import { resolveCommitDirection } from '../board/hysteresis';
@@ -79,9 +80,41 @@ interface CombatScreenProps {
   readonly enemyId: EnemyId;
   /** Navigate back to the menu (Back-to-menu / mid-fight exit). */
   readonly onExit: () => void;
+  /**
+   * Seed the fight from an EXTERNALLY-MANAGED encounter (the run layer's scaled/boss enemy
+   * with relic combat-start effects already applied). Omit for a standalone `/combat/[enemy]`.
+   */
+  readonly initialCombat?: CombatState;
+  /**
+   * How a released drag resolves into a turn. Defaults to the pure combat `playTurn`; the run
+   * layer injects a resolver that threads relic modifiers + boss phase via `playEncounterTurn`
+   * and updates the owning run state — so drafted relics visibly change the damage/heal numbers.
+   */
+  readonly resolveTurn?: (combat: CombatState, path: Path) => TurnResolution;
+  /** Fired once when the encounter reaches a terminal phase (run layer owns the outcome flow). */
+  readonly onEncounterEnd?: (status: 'won' | 'lost', finalCombat: CombatState) => void;
+  /** Suppress the built-in Retry/Menu overlay (run mode renders its own victory/defeat flow). */
+  readonly hideOverlay?: boolean;
+  /** Enemy display overrides for the run layer (boss name/glyph, live per-phase affinity). */
+  readonly enemyNameOverride?: string;
+  readonly enemyGlyphOverride?: string;
+  readonly enemyAffinityOverride?: AffinityTable;
+  /** A run HUD strip rendered at the top of the fight (HP/gold/relics stay visible in a run). */
+  readonly hudSlot?: ReactNode;
 }
 
-export function CombatScreen({ enemyId, onExit }: CombatScreenProps) {
+export function CombatScreen({
+  enemyId,
+  onExit,
+  initialCombat,
+  resolveTurn,
+  onEncounterEnd,
+  hideOverlay,
+  enemyNameOverride,
+  enemyGlyphOverride,
+  enemyAffinityOverride,
+  hudSlot,
+}: CombatScreenProps) {
   const { width } = useWindowDimensions();
   const layout = useMemo(() => computeBoardLayout(width), [width]);
 
@@ -89,8 +122,19 @@ export function CombatScreen({ enemyId, onExit }: CombatScreenProps) {
   const [state, dispatch] = useReducer(
     combatReducer,
     seedRef.current,
-    (seed) => initCombatState(enemyId, seed),
+    (seed) => initCombatState(enemyId, seed, initialCombat),
   );
+
+  // Notify the run layer exactly once when the fight ends (won/lost); it owns what happens next.
+  const endedRef = useRef(false);
+  useEffect(() => {
+    if (endedRef.current) return;
+    if (state.phase === 'won' || state.phase === 'lost') {
+      endedRef.current = true;
+      onEncounterEnd?.(state.phase, state.combat);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
 
   // Shared cascade-animation player (frame + combo + clock) — same as the board.
   const { animFrame, activeCombo, progress, playWaves, reset } = useWaveAnimator(layout);
@@ -203,7 +247,8 @@ export function CombatScreen({ enemyId, onExit }: CombatScreenProps) {
     const s = stateRef.current;
     dispatch({ type: 'beginResolve' });
     const postSwap = displayBoard(s.combat.board, d);
-    const resolution = playTurn(s.combat, toEnginePath(d));
+    const resolve = resolveTurn ?? ((combat, path) => playTurn(combat, path));
+    const resolution = resolve(s.combat, toEnginePath(d));
     void animateTurn(resolution, postSwap);
   }
 
@@ -308,12 +353,17 @@ export function CombatScreen({ enemyId, onExit }: CombatScreenProps) {
         <Text style={styles.menuLinkText}>‹ Menu</Text>
       </Pressable>
 
+      {hudSlot ? <View style={[styles.hudSlot, { width: layout.width }]}>{hudSlot}</View> : null}
+
       <EnemyPanel
         enemyId={state.enemyId}
         hp={shownEnemyHp}
         maxHp={state.combat.enemyMaxHp}
         telegraph={state.combat.telegraph}
         width={layout.width}
+        nameOverride={enemyNameOverride}
+        glyphOverride={enemyGlyphOverride}
+        affinityOverride={enemyAffinityOverride ?? state.combat.enemy?.affinity}
       />
 
       <TurnFeedback content={shownFeedback} />
@@ -342,10 +392,10 @@ export function CombatScreen({ enemyId, onExit }: CombatScreenProps) {
         <PlayerPanel hp={shownPlayerHp} maxHp={state.combat.playerMaxHp} width={layout.width} />
       </View>
 
-      {isOver ? (
+      {isOver && !hideOverlay ? (
         <CombatOverlay
           status={state.phase === 'won' ? 'won' : 'lost'}
-          enemyName={enemyName(state.enemyId)}
+          enemyName={enemyNameOverride ?? enemyName(state.enemyId)}
           turns={state.combat.turn}
           onRetry={handleRetry}
           onMenu={onExit}
@@ -379,5 +429,8 @@ const styles = StyleSheet.create({
   },
   hud: {
     gap: 10,
+  },
+  hudSlot: {
+    marginTop: -8,
   },
 });

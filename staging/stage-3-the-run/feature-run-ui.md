@@ -1,5 +1,5 @@
 # Feature: Run UI (map, draft, shop, event, rest, victory/defeat screens)
-_Stage: 3 — The Run · Status: not started_
+_Stage: 3 — The Run · Status: awaiting verification (built + automated gates green; on-device flows are Cam's)_
 
 ## Goal
 The screens that make the run playable on-device: a map screen (route choice), draft screen (pick 1 of 3),
@@ -34,7 +34,16 @@ readability over beauty.
    kill and reopen the app mid-run to verify Continue.
 
 ## Verification Log
-(empty until verification actually happens — a feature with an empty log can never be `verified done`)
+### 2026-07-15 — Built; automated portion verified — on-device flows remain for Cam
+- All screens live under `app/run/*` with a phase-driven RunProvider: map (13-floor DAG, glyphs, legal-node
+  tapping), draft (pick/skip), shop/event/rest, encounter (reused combat screen with injected
+  `playEncounterTurn` — relic-modified damage numbers and per-phase boss affinity flow through), victory/
+  defeat summaries, HUD (HP/gold/floor/relics), menu Continue/Abandon.
+- async-storage installed (the stage's one new dependency); `AsyncStorageRunStore` adapter is UI-side only
+  (engine purity intact — grep shows no engine import; two doc-comment mentions only). Save fires on every
+  committed action; in-memory round-trip proven deep-equal at every checkpoint; clear-on-terminal tested.
+- 39 UI view-model tests green (total suite 415); tsc clean; `npx expo export --platform ios` clean (4.3MB).
+- REMAINING (Cam, on-device): full run through every node type; kill+reopen mid-run → Continue resumes.
 
 ## Open Questions
 - Map rendering approach: plain RN views + absolute layout vs a Skia canvas (default: plain RN — the map

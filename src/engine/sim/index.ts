@@ -71,3 +71,25 @@ export type {
   CombatMoveStat,
   EncounterOutcome,
 } from './combatTypes';
+
+// ── Full-run sim (Stage 3) ─────────────────────────────────────────────────────
+// Run policy bot (routing heuristic + one-transition stepper) + combat path chooser.
+export {
+  ROUTE_HURT_HP_FRACTION,
+  ROUTE_HEALTHY_HP_FRACTION,
+  combatPathFor,
+  choosePolicyRoute,
+  stepRunBot,
+} from './runBot';
+
+// Run game driver + harness.
+export { playRun } from './runGame';
+export { runRunHarness } from './runHarness';
+
+// Run aggregation + reporting.
+export { summarizeRun, formatRunReport } from './runStats';
+export type { RunSummary, RunBucketBin, RunCauseBin, RunFloorBin } from './runStats';
+
+// Run-sim data model.
+export { DEFAULT_RUN_STEP_CAP } from './runSimTypes';
+export type { RunBotName, RunOutcome, RunDeath, RunGameResult, RunHarnessConfig } from './runSimTypes';

@@ -8,7 +8,7 @@
  */
 import { View, StyleSheet, Text } from 'react-native';
 import { getEnemy } from '../../engine/combat';
-import type { EnemyAction, EnemyId } from '../../engine/combat';
+import type { AffinityTable, EnemyAction, EnemyId } from '../../engine/combat';
 import { COMBAT_COLORS } from './combatColors';
 import { HpBar } from './HpBar';
 import {
@@ -27,6 +27,12 @@ interface EnemyPanelProps {
   readonly maxHp: number;
   readonly telegraph: EnemyAction;
   readonly width: number;
+  /** Display-name override (run layer: e.g. the boss's real name). Defaults to the enemy id. */
+  readonly nameOverride?: string;
+  /** Glyph override (run layer). Defaults to the enemy id's glyph. */
+  readonly glyphOverride?: string;
+  /** Live affinity override (scaled fight / per-phase boss). Defaults to the registry enemy's. */
+  readonly affinityOverride?: AffinityTable;
 }
 
 const INTENT_TINT: Readonly<Record<EnemyAction['type'], string>> = {
@@ -56,17 +62,24 @@ function ChipRow({ heading, chips, bg, color }: {
   );
 }
 
-export function EnemyPanel({ enemyId, hp, maxHp, telegraph, width }: EnemyPanelProps) {
-  const enemy = getEnemy(enemyId);
-  const affinity = buildAffinityChips(enemy.affinity);
+export function EnemyPanel({
+  enemyId,
+  hp,
+  maxHp,
+  telegraph,
+  width,
+  nameOverride,
+  glyphOverride,
+  affinityOverride,
+}: EnemyPanelProps) {
+  const affinity = buildAffinityChips(affinityOverride ?? getEnemy(enemyId).affinity);
   const intent = formatIntent(telegraph);
+  const title = `${glyphOverride ?? ENEMY_GLYPH[enemyId]} ${nameOverride ?? enemyName(enemyId)}`;
 
   return (
     <View style={[styles.panel, { width }]}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>
-          {ENEMY_GLYPH[enemyId]} {enemyName(enemyId)}
-        </Text>
+        <Text style={styles.title}>{title}</Text>
         <View style={styles.intentBadge}>
           <Text style={styles.intentLabel}>Next</Text>
           <Text style={[styles.intentValue, { color: INTENT_TINT[telegraph.type] }]}>

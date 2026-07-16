@@ -26,16 +26,14 @@ handling. One starting build in v1 ("the Adventurer" — placeholder name).
 - Target: **15–20 minute, 8–12 encounter** winnable runs.
 
 ## Definition of done (testable checklist)
-- [ ] **Full-run sim gates pass** (the automated core): 1000 seeded headless runs, zero crashes/wedges,
-      policy-bot win rate 25–75%, 8–12 encounters per run, byte-deterministic reports — evidence in
-      feature-run-lifecycle.md's Verification Log.
-- [ ] **All engine unit gates green**: map graph invariants, relic stacking fixtures, economy no-wedge
-      property, save/load transcript equality; `src/engine/` coverage ≥80%; purity greps clean.
-- [ ] **Run UI complete and bundling**: all six screen criteria in feature-run-ui.md met; view-model tests
-      green; `npx expo export` clean.
+- [x] **Full-run sim gates pass**: 38.8% win / 0 wedges / 1000 runs, encounters median 11, moves median
+      57, byte-deterministic, trivial-policy 0%. (evidence: feature-run-lifecycle.md log, 2026-07-15)
+- [x] **All engine unit gates green**: 415 tests / 51 suites; coverage ≥80%; purity clean. (2026-07-15)
+- [x] **Run UI complete and bundling**: all screens live, 39 view-model tests, iOS export clean.
+      (evidence: feature-run-ui.md log, 2026-07-15)
 - [ ] Cam can **complete a real 15–20 minute run start to finish** on-device, and death, victory, and
       mid-run save/resume all behave. (Human gate.)
-- [ ] Stage 1 and Stage 2 sim baselines still reproduce (no behavioral regression underneath the run).
+- [x] Stage 1 and Stage 2 sim baselines still reproduce — byte-identical, manager-verified. (2026-07-15)
 
 ## Notes
 - Local device storage only (async-storage vs MMKV is an open question — decide when first needed here).

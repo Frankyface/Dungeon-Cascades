@@ -1,5 +1,5 @@
 # Feature: Run Lifecycle (run state, boss, save/load, death & victory, full-run sim)
-_Stage: 3 — The Run · Status: in progress (engine verified; full-run sim gates + Cam's on-device run remain)_
+_Stage: 3 — The Run · Status: awaiting verification (ALL automated gates passed; Cam's on-device run remains)_
 
 ## Goal
 Stitch map + combat + relics + economy into one complete, persistent run: start → route through the map →
@@ -50,6 +50,16 @@ Stage 4 balance instrument.
   over 100 seeds (inside 25–75% band, pre-CLI). Combat seam extended minimally (optional CombatState.enemy
   override for phase shifts) — combat suite unmodified, baselines byte-identical.
 - REMAINING: the full-run sim CLI gates (1000 runs, determinism diff — next agent) and Cam's on-device run.
+
+### 2026-07-15 — Full-run sim gates ALL PASS (manager spot-verified) — only Cam's on-device run remains
+- `npm run sim -- --mode run --bot policy --games 1000 --seed 42`: **38.8% win rate, 0 wedges/1000**,
+  boss-reached 48.6%, encounters/victory-run median 11 (9–11 ⊆ 8–12), moves median 57 (∈30–90). Deaths
+  peak floors 1–2 and the boss floor — healthy difficulty shape. Trivial policy 0.0% (skill floor holds).
+  Byte-deterministic (1000-run diff empty; manager re-diffed at 200 games: identical, 43.0% in band).
+- NO run-layer tuning needed — default configs passed as-built. 51 suites / 415 tests green; tsc clean;
+  coverage ≥80% both required metrics; Stage 1+2 baselines byte-identical.
+- Policy heuristic: HP-fraction routing (hurt→rest-first / healthy→elite-first / mid→fight-first),
+  combat via the shipped greedyComboPath, draft/shop/event via the engine's stepRun preferences.
 
 ## Open Questions
 - Boss identity/flavor (Bone Colossus?) and whether its affinity-shift phase reads clearly in the UI.

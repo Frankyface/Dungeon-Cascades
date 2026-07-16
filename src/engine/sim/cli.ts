@@ -18,14 +18,18 @@ import { runHarness } from './harness';
 import { formatReport, formatTiming, summarize, summarizeTiming } from './stats';
 import { runCombatHarness } from './combatHarness';
 import { formatCombatReport, summarizeCombat } from './combatStats';
+import { runRunHarness } from './runHarness';
+import { formatRunReport, summarizeRun } from './runStats';
+import { DEFAULT_RUN_STEP_CAP } from './runSimTypes';
 import { DEFAULT_BOT_CONFIG } from './types';
 import { DEFAULT_MAX_TURNS } from './combatTypes';
 import { DEFAULT_COMBAT_CONFIG, ENEMY_IDS } from '../combat';
 import type { EnemyId } from '../combat';
 import type { BotName, HarnessConfig } from './types';
 import type { CombatBotName, CombatHarnessConfig } from './combatTypes';
+import type { RunBotName, RunHarnessConfig } from './runSimTypes';
 
-type Mode = 'board' | 'combat';
+type Mode = 'board' | 'combat' | 'run';
 
 interface ParsedArgs {
   readonly mode: Mode;
@@ -47,6 +51,7 @@ const DEFAULTS = {
 
 const BOARD_BOTS: readonly string[] = ['random', 'greedy'];
 const COMBAT_BOTS_NAMES: readonly string[] = ['greedy-combat', 'random'];
+const RUN_BOTS_NAMES: readonly string[] = ['policy', 'trivial'];
 
 const USAGE = `Dungeon Cascades — sim stats CLI
 
@@ -56,13 +61,16 @@ Usage:
   Combat mode (Stage 2 — full seeded encounters):
     npm run sim -- --mode combat --enemy slime|skeleton|bat \\
                    --bot greedy-combat|random --games N --seed S [--timing]
+  Run mode (Stage 3 — full seeded runs, map→fights→draft→shop→boss):
+    npm run sim -- --mode run --bot policy|trivial --games N --seed S [--timing]
 
 Options:
-  --mode NAME   board | combat                          (default board)
+  --mode NAME   board | combat | run                    (default board)
   --enemy NAME  combat only: slime | skeleton | bat     (default ${DEFAULTS.enemy})
   --bot NAME    board: random | greedy                  (default random)
                 combat: greedy-combat | random          (default greedy-combat)
-  --games N     Number of seeded games/encounters        (default ${DEFAULTS.games})
+                run: policy | trivial                   (default policy)
+  --games N     Number of seeded games/encounters/runs   (default ${DEFAULTS.games})
   --seed S      Base seed; game i uses derive(seed, i)   (default ${DEFAULTS.seed})
   --moves M     Board mode only: moves played per game   (default ${DEFAULTS.moves})
   --timing      Print an extra timing line to stderr
@@ -72,8 +80,8 @@ Determinism:
   stdout (the stats report) is byte-for-byte identical across identical runs.
   Wall-time timing is nondeterministic, so it is written to STDERR only — stdout
   stays clean. Prove it:
-    npm run sim -- --mode combat --enemy slime --bot greedy-combat --games 500 --seed 42 > a.txt
-    npm run sim -- --mode combat --enemy slime --bot greedy-combat --games 500 --seed 42 > b.txt
+    npm run sim -- --mode run --bot policy --games 1000 --seed 42 > a.txt
+    npm run sim -- --mode run --bot policy --games 1000 --seed 42 > b.txt
     diff a.txt b.txt        # -> no output
 `;
 
@@ -104,8 +112,8 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     switch (arg) {
       case '--mode': {
         const value = argv[++i];
-        if (value !== 'board' && value !== 'combat') {
-          throw new Error(`--mode must be 'board' or 'combat', got '${value ?? ''}'`);
+        if (value !== 'board' && value !== 'combat' && value !== 'run') {
+          throw new Error(`--mode must be 'board', 'combat', or 'run', got '${value ?? ''}'`);
         }
         mode = value;
         break;
@@ -150,8 +158,9 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   }
 
   // Resolve the mode-specific bot default, then validate against the mode.
-  const bot = botRaw ?? (mode === 'combat' ? 'greedy-combat' : 'random');
-  const allowed = mode === 'combat' ? COMBAT_BOTS_NAMES : BOARD_BOTS;
+  const botDefault = mode === 'combat' ? 'greedy-combat' : mode === 'run' ? 'policy' : 'random';
+  const bot = botRaw ?? botDefault;
+  const allowed = mode === 'combat' ? COMBAT_BOTS_NAMES : mode === 'run' ? RUN_BOTS_NAMES : BOARD_BOTS;
   if (!allowed.includes(bot)) {
     throw new Error(`--bot for ${mode} mode must be one of ${allowed.join(' | ')}, got '${bot}'`);
   }
@@ -207,6 +216,33 @@ function runCombat(parsed: ParsedArgs): void {
   process.stderr.write(timingLine);
 }
 
+/** Run mode — drive full seeded runs; deterministic report to stdout, timing to stderr. */
+function runRun(parsed: ParsedArgs): void {
+  const config: RunHarnessConfig = {
+    bot: parsed.bot as RunBotName,
+    games: parsed.games,
+    baseSeed: parsed.seed,
+    stepCap: DEFAULT_RUN_STEP_CAP,
+  };
+
+  const t0 = performance.now();
+  const results = runRunHarness(config);
+  const t1 = performance.now();
+
+  // Deterministic report -> stdout.
+  process.stdout.write(formatRunReport(summarizeRun(config, results)));
+  // Nondeterministic timing -> stderr only.
+  const totalMs = t1 - t0;
+  const perGame = config.games === 0 ? 0 : totalMs / config.games;
+  let timingLine = `[timing] ${config.games} runs in ${totalMs.toFixed(1)} ms (avg ${perGame.toFixed(3)} ms/run)\n`;
+  if (parsed.timing) {
+    const totalMoves = results.reduce((sum, r) => sum + r.moves, 0);
+    const totalSteps = results.reduce((sum, r) => sum + r.steps, 0);
+    timingLine += `[timing] total combat moves: ${totalMoves} · total driver steps: ${totalSteps}\n`;
+  }
+  process.stderr.write(timingLine);
+}
+
 function run(argv: readonly string[]): number {
   let parsed: ParsedArgs;
   try {
@@ -224,6 +260,8 @@ function run(argv: readonly string[]): number {
 
   if (parsed.mode === 'combat') {
     runCombat(parsed);
+  } else if (parsed.mode === 'run') {
+    runRun(parsed);
   } else {
     runBoard(parsed);
   }
