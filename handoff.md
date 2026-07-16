@@ -26,11 +26,13 @@ Cam's fun-gate verdict (TestFlight) remains the standing kill/pivot check over e
 - 2026-07-15 — Combat engine verified: affinity damage, trustworthy intents, 100% module coverage.
 
 ## ❌ Watch Out
-- Combat unit fixtures PIN constants — any constant change requires hand-recomputed fixtures (see
-  "Combat recalibration" in decisions.md; the sim agent correctly refused to force green).
-- Two agents sharing the working tree can trip each other's "all tests green" gates — sequence builds
-  that both touch `npm test` scope.
-- Greedy sims are DFS-bound (~100s/1000 board games; combat sims slower) — budget verification time.
+- **OPEN HIGH BUG (queued fix): boss phase-shift fires an un-telegraphed action** on the turn after a
+  phase-crossing hit (runFlow.ts turn-start sync overwrites the shown telegraph). Violates the fairness
+  contract at the boss. Fix after the Stage 4 agent releases src/engine/run — see task board.
+- Combat unit fixtures PIN constants — constant changes require hand-recomputed fixtures (decisions.md
+  "Combat recalibration").
+- Bots don't read telegraphs — telegraph-contract bugs are INVISIBLE to sims; needs targeted integration
+  tests (this is how the boss bug slipped through ~420 green tests).
 
 ## ➡️ Next Up
 1. Verify recalibration (bands table, determinism, fixtures auditable) → close Stage 2 automatable gates.
