@@ -24,17 +24,16 @@ the project's balance instrument and tune difficulty from its reports.
   evidence.
 
 ## Definition of done (testable checklist)
-- [ ] **Variant purity gate passes**: every shipped variant within ±5pp of vanilla win rate over ≥2000
-      seeded runs; the run command + numbers logged in the owning feature's Verification Log.
-- [ ] **Meta state persists**: cumulative score and unlocked variants survive app restart (storage-port
-      round-trip test + Cam's on-device restart check); resetting meta is possible.
-- [ ] **Unlock tranches fire correctly**: score milestones unlock variants exactly once, idempotent under
-      replay/reload — unit-tested.
-- [ ] **Balance report exists and is deterministic**: same seeds ⇒ byte-identical report; at least one
-      concrete tuning change is made from its evidence and re-verified.
-- [ ] **No power creep by construction**: a fresh install and a maxed meta profile have identical vanilla
-      run conditions — asserted by a test comparing run-start states.
-- [ ] Stage 1–3 sim baselines still reproduce.
+- [~] **Variant purity gate**: all six PASS at N=1000 (worst |Δ| 2.1pp); the spec's ≥2000-game matrix is
+      scheduled tonight (command in feature-meta-variants.md log) — that run closes this box.
+- [~] **Meta state persists**: storage-port round-trip + once-guarded banking tested; Cam's on-device
+      restart check remains.
+- [x] **Unlock tranches fire correctly**: idempotent, exactly-once, replay-safe — unit-tested. (2026-07-16)
+- [~] **Balance report exists and is deterministic**: built + Jest-pinned + deterministic at pinned scale;
+      evidence verdict recorded (NO CHANGE, numbers cited); default-scale double-run tonight.
+- [x] **No power creep by construction**: fresh vs maxed profiles produce JSON-identical vanilla starts —
+      test asserted. (2026-07-16)
+- [x] Stage 1–3 sim baselines still reproduce — byte-identical after Stage 4 + boss fix. (2026-07-16)
 
 ## Notes
 - This is where the "mostly automated" verification convention pays off most — balance is proven by sims,

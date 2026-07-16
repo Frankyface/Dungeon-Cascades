@@ -1,5 +1,5 @@
 # Feature: Starting Variants & Meta-Progression (sim-verified sidegrades, cumulative-score unlocks)
-_Stage: 4 — Meta & Balance · Status: not started_
+_Stage: 4 — Meta & Balance · Status: awaiting verification (built + N=1000 purity evidence; ≥2000 matrix runs tonight; Cam's restart check pending)_
 
 ## Goal
 Implement the decided meta shape (decisions.md 2026-07-15, "Meta-progression shape"): power-neutral
@@ -33,7 +33,23 @@ is a sidegrade whose purity is machine-enforced by the full-run sim. Engine work
 3. Baseline reruns (Stage 1 board, Stage 2 skeleton, Stage 3 vanilla run sim at 1000 → 38.8%).
 
 ## Verification Log
-(empty until verification actually happens — a feature with an empty log can never be `verified done`)
+### 2026-07-16 — Built and verified except the full-scale purity matrix (manager re-ran gates)
+- 6 variants live as pure data (3 debate-slate swaps to stay modifier-expressible — see decisions.md
+  "Stage 4 variant slate"). `startRun(seed, variantId?)` — vanilla byte-identical when omitted. Meta:
+  score = floors + 2×wins + 10×victory; tranches 50/100/150/210/290/360 (pacing: first unlock ~2–2.5
+  runs, full slate ~14.5–18 at measured 24.9 mean score/run); idempotent unlocks; no-power-creep test
+  (fresh vs maxed profile ⇒ JSON-identical vanilla starts). UI: /start selection screen (locked cards
+  with progress), once-guarded banking at the outcome screen, async-storage meta adapter.
+- **Purity table at N=1000, seed 42, policy bot (all PASS at ±5pp):** vanilla 38.8% baseline ·
+  cartographer 36.7 (−2.1) · ember-start 39.1 (+0.3) · merchants-purse 39.0 (+0.2) · vitality-pact
+  40.3 (+1.5) · ironhide 38.7 (−0.1) · glass-cannon 37.1 (−1.7). Worst |Δ| 2.1pp; sampling noise
+  ~±1.9pp at N=1000.
+- **REMAINING — the spec's ≥2000-game gate (runs tonight per Cam):**
+  `npm run sim -- --mode report --seed 42 > report_A.txt` then same `> report_B.txt`, then
+  `diff report_A.txt report_B.txt` (expect empty). report_A's table closes this criterion.
+  Twice killed mid-run by host restarts; N=1000 evidence stands meanwhile.
+- Suite 59 suites / 517 tests green (now 517 incl. variant UI); tsc clean; engine coverage ≥80% both
+  metrics; Stage 1/2/3 baselines byte-identical. Cam's on-device restart-persistence check also remains.
 
 ## Open Questions
 - Final six variants and their exact numbers (agent proposes, purity gate disposes).
