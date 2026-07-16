@@ -27,7 +27,7 @@ Stack: Expo + React Native + TypeScript · @shopify/react-native-skia + react-na
 
 ## Run & test
 - `npm test` — Jest unit tests.
-- `npx expo start` — Expo Go on Cam's iPhone (the PRIMARY device).
+- `npm run dev` (= `npx expo start`) — dev server; scan the QR with Expo Go on Cam's iPhone (the PRIMARY device).
 - Sim harness CLI — headless bots + stats; exists only AFTER Stage 1's sim-bot feature lands.
 
 ## Verification protocol
