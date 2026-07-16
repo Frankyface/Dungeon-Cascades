@@ -64,6 +64,42 @@ export function applyRunAction(state: RunState, action: RunUiAction, options: Ru
   }
 }
 
+/** The outcome of `safeApplyRunAction`: the next run state, and whether the action was rejected. */
+export interface SafeRunActionResult {
+  readonly state: RunState;
+  readonly rejected: boolean;
+}
+
+/**
+ * Apply a UI action DEFENSIVELY: if the action is illegal from the current run state, return the
+ * run UNCHANGED with `rejected: true` instead of throwing.
+ *
+ * The engine's pure flow functions validate at their own boundary by THROWING when an action does
+ * not fit the current phase (`assertRunPhase`) — or is otherwise inapplicable: a stale next-node
+ * id (`moveTo`), a second rest at one campfire (`applyRest`), a non-offered draft pick. At the UI
+ * boundary that throw is not an error to surface: it is a double-tapped button whose first tap
+ * already advanced the run past the phase this tap targeted (the run `_layout` fade keeps the
+ * outgoing screen's buttons briefly tappable). We turn it into a silent no-op — mirroring the
+ * board/combat reducers, which likewise ignore out-of-phase actions by returning state unchanged.
+ *
+ * Delegating to the engine's own guards (rather than re-encoding a phase→action table here) keeps
+ * ZERO game rules in the UI and stays correct as the engine evolves. It is safe because the engine
+ * is PURE: its guards throw before any new state is produced and it never mutates its input, so the
+ * original `state` is always intact to return.
+ */
+export function safeApplyRunAction(
+  state: RunState,
+  action: RunUiAction,
+  options: RunOptions = {},
+): SafeRunActionResult {
+  try {
+    return { state: applyRunAction(state, action, options), rejected: false };
+  } catch {
+    // An illegal action for the current phase (e.g. a double-tap). No-op: return the run as-is.
+    return { state, rejected: true };
+  }
+}
+
 /**
  * Persist the run at a checkpoint: an active run is saved (full serializable state), a
  * terminal run CLEARS the slot (rogue-lite — a finished run does not resume). Thin wrapper

@@ -118,10 +118,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'beginResolve': {
       // Lock input while the wave animation plays. Requires a real (non-empty) drag.
+      // Reset the move timer so the bar reads full (not drained) through `resolving` (mirrors combat).
       if (state.phase !== 'dragging' || !state.drag || !hasSteps(state.drag)) {
         return state;
       }
-      return { ...state, phase: 'resolving' };
+      return { ...state, phase: 'resolving', timer: resetTimer(state.timer) };
     }
 
     case 'settle': {
@@ -139,7 +140,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'cancelDrag':
-      // Released without committing any step (a tap) — no move happens.
+      // Released without committing any step (a tap) — no move happens. Guarded to `dragging` so a
+      // timer-expiry/release race can't reset a mid-resolve phase back to idle (which would let a
+      // later `settle` wipe a picked-up tile) — mirrors combatReducer.cancelDrag.
+      if (state.phase !== 'dragging') {
+        return state;
+      }
       return {
         ...state,
         phase: 'idle',

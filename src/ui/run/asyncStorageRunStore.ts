@@ -45,8 +45,15 @@ export class AsyncStorageRunStore implements RunStorePort {
   /**
    * Load the saved run from disk into the mirror (cold-start hydration). Returns the loaded run
    * (or null). A corrupt/unreadable payload is treated as "no save" rather than crashing the app.
+   *
+   * IDEMPOTENT: once the mirror reflects a disk read/write (an earlier hydrate, or a save/clear),
+   * hydrating again returns the current mirror WITHOUT re-reading disk — a remount (e.g. returning
+   * to the menu) can't resurrect a stale disk value or race a just-staged run.
    */
   async hydrate(): Promise<RunState | null> {
+    if (this.hydrated) {
+      return this.mirror;
+    }
     try {
       const raw = await AsyncStorage.getItem(RUN_STORAGE_KEY);
       this.mirror = raw ? (JSON.parse(raw) as RunState) : null;

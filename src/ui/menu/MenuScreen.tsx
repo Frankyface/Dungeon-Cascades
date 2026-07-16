@@ -11,7 +11,8 @@ import { ENEMY_IDS, getEnemy } from '../../engine/combat';
 import type { EnemyId } from '../../engine/combat';
 import { COMBAT_COLORS } from '../combat/combatColors';
 import { ENEMY_GLYPH, buildAffinityChips, enemyName } from '../combat/combatFormat';
-import { hydrateRunStore, runStore, stageNewRun, stageResumeRun } from '../run/runController';
+import { hydrateRunStore, isRunStoreHydrated, runStore, stageNewRun, stageResumeRun } from '../run/runController';
+import { runSection, type MenuHydration } from './menuState';
 
 function weaknessHint(enemyId: EnemyId): string {
   const chips = buildAffinityChips(getEnemy(enemyId).affinity);
@@ -23,18 +24,29 @@ function weaknessHint(enemyId: EnemyId): string {
 
 export function MenuScreen() {
   const router = useRouter();
-  const [hasSave, setHasSave] = useState(false);
+  // Lazy-init from the store: on a warm remount (returning from a run) the mirror is already
+  // hydrated, so the run section renders its final state with no "Loading…" flash.
+  const [hasSave, setHasSave] = useState(() => runStore().load() !== null);
+  const [hydration, setHydration] = useState<MenuHydration>(() =>
+    isRunStoreHydrated() ? 'ready' : 'loading',
+  );
 
-  // Cold-start: load the saved run from disk into the store mirror so we know whether to offer
-  // Continue. Runs once on mount; a failed read is treated as "no save".
+  // Cold-start: hydrate the saved run from disk BEFORE the run section becomes interactive, so a
+  // premature "Start a run" tap can't stage + save a fresh run over the still-unread save (data
+  // loss). Runs once on mount; a failed read is treated as "no save". hydrateRunStore is idempotent,
+  // so a warm remount resolves instantly without re-reading disk.
   useEffect(() => {
     let active = true;
     hydrateRunStore()
       .then((saved) => {
-        if (active) setHasSave(saved !== null);
+        if (!active) return;
+        setHasSave(saved !== null);
+        setHydration('ready');
       })
       .catch(() => {
-        if (active) setHasSave(false);
+        if (!active) return;
+        setHasSave(false);
+        setHydration('ready');
       });
     return () => {
       active = false;
@@ -60,6 +72,8 @@ export function MenuScreen() {
     setHasSave(false);
   };
 
+  const section = runSection(hydration, hasSave);
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
@@ -69,7 +83,14 @@ export function MenuScreen() {
 
       <Text style={styles.sectionLabel}>The Run</Text>
 
-      {hasSave ? (
+      {section.kind === 'loading' ? (
+        // Hydration in flight: a non-interactive placeholder — Start/Continue can't fire yet, so a
+        // premature tap can't clobber an unread save.
+        <View style={[styles.card, styles.runCard, styles.cardDisabled]}>
+          <Text style={styles.cardTitle}>Loading…</Text>
+          <Text style={styles.cardHint}>Checking for a saved run</Text>
+        </View>
+      ) : section.kind === 'resume' ? (
         <>
           <Pressable
             onPress={continueRun}
@@ -82,6 +103,10 @@ export function MenuScreen() {
             <Text style={styles.cardTitle}>🗑 Abandon run</Text>
             <Text style={styles.cardHint}>Delete the save and clear the slot</Text>
           </Pressable>
+          <Pressable onPress={startNewRun} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+            <Text style={styles.cardTitle}>✦ Start a new run</Text>
+            <Text style={styles.cardHint}>Abandon the current save and begin fresh</Text>
+          </Pressable>
         </>
       ) : (
         <Pressable
@@ -92,13 +117,6 @@ export function MenuScreen() {
           <Text style={styles.cardHint}>Climb the dungeon: fights, relics, shops — one life</Text>
         </Pressable>
       )}
-
-      {hasSave ? (
-        <Pressable onPress={startNewRun} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-          <Text style={styles.cardTitle}>✦ Start a new run</Text>
-          <Text style={styles.cardHint}>Abandon the current save and begin fresh</Text>
-        </Pressable>
-      ) : null}
 
       <Text style={styles.sectionLabel}>Sandbox</Text>
 
@@ -185,6 +203,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  cardDisabled: {
+    opacity: 0.6,
   },
   enemyRow: {
     flexDirection: 'row',

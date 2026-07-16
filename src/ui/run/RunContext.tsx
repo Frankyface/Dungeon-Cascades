@@ -12,7 +12,7 @@ import type { Path } from '../../engine/board';
 import type { TurnResolution } from '../../engine/combat';
 import { abandonRun, buyFromShop, playEncounterTurn, startRun } from '../../engine/run';
 import type { BuyResult, RunState } from '../../engine/run';
-import { applyRunAction, persistRun } from './runSession';
+import { applyRunAction, persistRun, safeApplyRunAction } from './runSession';
 import { routeForRunState } from './runRoute';
 import { makeRunSeed, runStore, takeStagedRun } from './runController';
 
@@ -80,11 +80,17 @@ export function RunProvider({ children }: { readonly children: ReactNode }) {
       commit(next);
       router.replace(routeForRunState(next));
     };
-    /** Apply a non-combat UI action to the current run, then route. */
+    /**
+     * Apply a non-combat UI action to the current run, then route. Illegal actions — chiefly a
+     * double-tapped button whose first tap already changed the phase — are silently ignored:
+     * `safeApplyRunAction` catches the engine's phase-guard throw and reports `rejected`.
+     */
     const dispatch = (action: Parameters<typeof applyRunAction>[1]): void => {
       const cur = stateRef.current;
       if (cur === null) return;
-      commitAndRoute(applyRunAction(cur, action));
+      const { state: next, rejected } = safeApplyRunAction(cur, action);
+      if (rejected) return;
+      commitAndRoute(next);
     };
 
     return {
@@ -109,7 +115,10 @@ export function RunProvider({ children }: { readonly children: ReactNode }) {
       restHere: () => {
         const cur = stateRef.current;
         if (cur === null) return;
-        commit(applyRunAction(cur, { type: 'rest' })); // stays on the rest screen
+        // A successful rest stays on the rest screen; a double-tapped rest (already rested) is a
+        // rejected no-op — the engine throws on a second rest, which safeApplyRunAction swallows.
+        const { state: next, rejected } = safeApplyRunAction(cur, { type: 'rest' });
+        if (!rejected) commit(next);
       },
       leaveRestNode: () => dispatch({ type: 'restLeave' }),
       resolveEncounterTurn: (path) => {

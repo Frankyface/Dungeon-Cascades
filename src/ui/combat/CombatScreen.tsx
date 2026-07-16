@@ -12,7 +12,8 @@
  *   idle / won / lost. Terminal phases lock input and show the overlay.
  */
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue, withTiming } from 'react-native-reanimated';
 import { indexOf, tileAt } from '../../engine/board';
@@ -116,6 +117,7 @@ export function CombatScreen({
   hudSlot,
 }: CombatScreenProps) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const layout = useMemo(() => computeBoardLayout(width), [width]);
 
   const seedRef = useRef(makeSeed());
@@ -323,6 +325,16 @@ export function CombatScreen({
 
   const isOver = state.phase === 'won' || state.phase === 'lost';
 
+  // The non-board chrome scrolls so a small phone (SE/mini class) can't clip the telegraph (top)
+  // or the player HP (bottom). Gesture precedence — how the board drag beats the scroll:
+  //   1. The board's Pan uses `minDistance(0)`, so it activates on the very first touch move,
+  //      before the ScrollView reaches its own (~10pt) scroll threshold — the pan wins the touch.
+  //   2. That first touch flips the phase to 'dragging' (onBegin → pickUp), which sets
+  //      `scrollEnabled={false}` here, so the ScrollView cannot start scrolling mid-drag either.
+  // Touches OUTSIDE an active drag (idle/resolving) leave scrolling enabled, so clipped content
+  // stays reachable. Disabling scroll mid-touch does not cancel the independent Pan gesture.
+  const scrollEnabled = state.phase !== 'dragging';
+
   const pan = useMemo(
     () =>
       Gesture.Pan()
@@ -349,48 +361,58 @@ export function CombatScreen({
 
   return (
     <View style={styles.screen}>
-      <Pressable onPress={onExit} hitSlop={12} style={styles.menuLink}>
+      <Pressable onPress={onExit} hitSlop={12} style={[styles.menuLink, { top: insets.top + 6 }]}>
         <Text style={styles.menuLinkText}>‹ Menu</Text>
       </Pressable>
 
-      {hudSlot ? <View style={[styles.hudSlot, { width: layout.width }]}>{hudSlot}</View> : null}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 44, paddingBottom: insets.bottom + 20 },
+        ]}
+        scrollEnabled={scrollEnabled}
+        showsVerticalScrollIndicator={false}
+      >
+        {hudSlot ? <View style={[styles.hudSlot, { width: layout.width }]}>{hudSlot}</View> : null}
 
-      <EnemyPanel
-        enemyId={state.enemyId}
-        hp={shownEnemyHp}
-        maxHp={state.combat.enemyMaxHp}
-        telegraph={state.combat.telegraph}
-        width={layout.width}
-        nameOverride={enemyNameOverride}
-        glyphOverride={enemyGlyphOverride}
-        affinityOverride={enemyAffinityOverride ?? state.combat.enemy?.affinity}
-      />
-
-      <TurnFeedback content={shownFeedback} />
-
-      <GestureDetector gesture={pan}>
-        <View style={{ width: layout.width, height: layout.height }}>
-          <SkiaBoard
-            layout={layout}
-            frame={frame}
-            progress={progress}
-            fingerX={fingerX}
-            fingerY={fingerY}
-            heldColor={heldColor}
-            heldScale={heldScale}
-          />
-        </View>
-      </GestureDetector>
-
-      <View style={[styles.hud, { width: layout.width }]}>
-        <MoveTimerBar
+        <EnemyPanel
+          enemyId={state.enemyId}
+          hp={shownEnemyHp}
+          maxHp={state.combat.enemyMaxHp}
+          telegraph={state.combat.telegraph}
           width={layout.width}
-          durationMs={MOVE_TIMER_MS}
-          runNonce={timerRunNonce}
-          running={state.timer.status === 'running'}
+          nameOverride={enemyNameOverride}
+          glyphOverride={enemyGlyphOverride}
+          affinityOverride={enemyAffinityOverride ?? state.combat.enemy?.affinity}
         />
-        <PlayerPanel hp={shownPlayerHp} maxHp={state.combat.playerMaxHp} width={layout.width} />
-      </View>
+
+        <TurnFeedback content={shownFeedback} />
+
+        <GestureDetector gesture={pan}>
+          <View style={{ width: layout.width, height: layout.height }}>
+            <SkiaBoard
+              layout={layout}
+              frame={frame}
+              progress={progress}
+              fingerX={fingerX}
+              fingerY={fingerY}
+              heldColor={heldColor}
+              heldScale={heldScale}
+            />
+          </View>
+        </GestureDetector>
+
+        <View style={[styles.hud, { width: layout.width }]}>
+          <MoveTimerBar
+            width={layout.width}
+            durationMs={MOVE_TIMER_MS}
+            runNonce={timerRunNonce}
+            running={state.timer.status === 'running'}
+          />
+          <PlayerPanel hp={shownPlayerHp} maxHp={state.combat.playerMaxHp} width={layout.width} />
+        </View>
+      </ScrollView>
 
       {isOver && !hideOverlay ? (
         <CombatOverlay
@@ -409,16 +431,22 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COMBAT_COLORS.screenBg,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    // flexGrow + centering keeps the current centered look when content fits, and lets it scroll
+    // (top-and-bottom padding via safe-area insets) when it would otherwise clip on small phones.
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 48,
-    paddingBottom: 20,
-    gap: 12,
+    gap: 10,
   },
   menuLink: {
     position: 'absolute',
-    top: 14,
     left: 16,
+    zIndex: 10,
     paddingVertical: 6,
     paddingHorizontal: 4,
   },

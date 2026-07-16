@@ -19,9 +19,18 @@ export function runStore(): AsyncStorageRunStore {
   return store;
 }
 
-/** Hydrate the store's mirror from disk (cold-start; call once from the menu). */
+/** Hydrate the store's mirror from disk (cold-start; call once from the menu). Idempotent. */
 export function hydrateRunStore(): Promise<RunState | null> {
   return store.hydrate();
+}
+
+/**
+ * Whether the store's mirror already reflects a disk read/write (a save/clear or a prior hydrate).
+ * The menu uses this to gate its run section: until it is true, Start/Continue are not interactive,
+ * so a premature tap can't clobber an unread save.
+ */
+export function isRunStoreHydrated(): boolean {
+  return store.isHydrated();
 }
 
 /** UI-side entropy for a fresh run seed (the engine stays pure — seeds come from the UI). */

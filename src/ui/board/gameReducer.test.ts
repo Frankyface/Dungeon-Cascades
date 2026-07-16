@@ -84,6 +84,25 @@ describe('resolve lifecycle', () => {
     expect(s.phase).toBe('resolving');
   });
 
+  it('beginResolve resets the move timer so the bar reads full through resolving (not drained)', () => {
+    let s = gameReducer(fresh(), { type: 'pickUp', cell: { col: 2, row: 2 } });
+    s = gameReducer(s, { type: 'commit', dir: 'up' }); // starts the timer
+    expect(s.timer.status).toBe('running');
+    s = gameReducer(s, { type: 'beginResolve' });
+    expect(s.phase).toBe('resolving');
+    expect(s.timer.status).toBe('idle'); // reset — not left running/drained during the cascade
+  });
+
+  it('cancelDrag is ignored when not dragging (guards the timer-expiry/release race mid-resolve)', () => {
+    let s = gameReducer(fresh(), { type: 'pickUp', cell: { col: 2, row: 2 } });
+    s = gameReducer(s, { type: 'commit', dir: 'up' });
+    s = gameReducer(s, { type: 'beginResolve' });
+    expect(s.phase).toBe('resolving');
+    const after = gameReducer(s, { type: 'cancelDrag' });
+    expect(after.phase).toBe('resolving'); // NOT reset to idle — the held tile survives to settle
+    expect(after).toBe(s); // strict no-op: same reference
+  });
+
   it('settle commits the final board, threads the RNG, and records combos', () => {
     let s = gameReducer(fresh(), { type: 'pickUp', cell: { col: 2, row: 2 } });
     s = gameReducer(s, { type: 'commit', dir: 'up' });

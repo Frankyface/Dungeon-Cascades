@@ -16,7 +16,8 @@ import {
   startRun,
 } from '../../engine/run';
 import type { RunState } from '../../engine/run';
-import { applyRunAction, hasSavedRun, loadRun, persistRun } from './runSession';
+import { applyRunAction, hasSavedRun, loadRun, persistRun, safeApplyRunAction } from './runSession';
+import type { RunUiAction } from './runSession';
 
 /** One deterministic transition using the UI session helpers (mirrors the provider). */
 function stepViaSession(state: RunState): RunState {
@@ -53,6 +54,37 @@ describe('applyRunAction — targeted branches', () => {
     const dead = applyRunAction(startRun(1), { type: 'abandon' });
     expect(dead.status).toBe('defeat');
     expect(dead.phase.kind).toBe('ended');
+  });
+});
+
+describe('safeApplyRunAction — double-tap phase-guard (returns unchanged, never throws)', () => {
+  // A combat-phase run: entering the floor-0 node starts the intro fight. Every NON-combat action
+  // is illegal from here — exactly the double-tapped-button case where the first tap already moved
+  // the run into combat and a stale second tap fires a now-wrong-phase action.
+  const combatState = applyRunAction(startRun(1), { type: 'enter' });
+
+  it('the fixture is in a combat phase', () => {
+    expect(combatState.phase.kind).toBe('combat');
+  });
+
+  it.each<RunUiAction>([
+    { type: 'enter' },
+    { type: 'travel', nodeId: 'not-a-real-node' },
+    { type: 'draftPick', relicId: null },
+    { type: 'eventChoice', index: 0 },
+    { type: 'rest' },
+    { type: 'shopLeave' },
+    { type: 'restLeave' },
+  ])('rejects %o against a combat-phase state and returns it unchanged (no throw)', (action) => {
+    const result = safeApplyRunAction(combatState, action);
+    expect(result.rejected).toBe(true);
+    expect(result.state).toBe(combatState); // exact same reference — no mutation, no new state
+  });
+
+  it('applies a legal action and reports it as not rejected', () => {
+    const result = safeApplyRunAction(startRun(1), { type: 'enter' });
+    expect(result.rejected).toBe(false);
+    expect(result.state.phase.kind).toBe('combat');
   });
 });
 
