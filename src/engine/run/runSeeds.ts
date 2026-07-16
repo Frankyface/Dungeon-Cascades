@@ -23,6 +23,11 @@ const GOLDEN32 = 0x9e3779b1;
 /** Sub-stream tags for the run tree. Small distinct integers; the fold spreads them apart. */
 export const RUN_TAG_MAP = 1;
 export const RUN_TAG_DRAFT = 2;
+/** Stage-3 lifecycle sub-streams (added wave 2; independent of map/draft). */
+export const RUN_TAG_ENEMY = 3; // which enemy a fight/elite node rolls
+export const RUN_TAG_ENCOUNTER = 4; // the fight's board + refill seed
+export const RUN_TAG_SHOP = 5; // a shop node's seeded stock
+export const RUN_TAG_EVENT = 6; // an event node's scripted-event draw + gamble rolls
 
 /**
  * Derive a uint32 sub-seed from a seed and an integer tag. Deterministic and pure —
@@ -45,4 +50,34 @@ export function mapSeedFor(runSeed: number): number {
  */
 export function draftSeedFor(runSeed: number, nodeIndex: number): number {
   return deriveSeed(deriveSeed(runSeed, RUN_TAG_DRAFT), nodeIndex);
+}
+
+/**
+ * A stable per-node key from a map coordinate `(floor, index)`. Used to seed every per-node
+ * sub-stream (enemy, encounter, shop, event, draft) so a node's content is a pure function of
+ * (runSeed, floor, index) — path-independent and reproducible across save/load. Floors and
+ * per-floor widths are tiny (≤ a few dozen / ≤3), so `floor × 1000 + index` is collision-free.
+ */
+export function nodeSeedKey(floor: number, index: number): number {
+  return floor * 1000 + index;
+}
+
+/** The enemy-selection seed for the node at `nodeKey` of a run rooted at `runSeed`. */
+export function enemySeedFor(runSeed: number, nodeKey: number): number {
+  return deriveSeed(deriveSeed(runSeed, RUN_TAG_ENEMY), nodeKey);
+}
+
+/** The encounter (board + refill) seed for the node at `nodeKey`. */
+export function encounterSeedFor(runSeed: number, nodeKey: number): number {
+  return deriveSeed(deriveSeed(runSeed, RUN_TAG_ENCOUNTER), nodeKey);
+}
+
+/** The shop-stock seed for the node at `nodeKey`. */
+export function shopSeedFor(runSeed: number, nodeKey: number): number {
+  return deriveSeed(deriveSeed(runSeed, RUN_TAG_SHOP), nodeKey);
+}
+
+/** The event seed (scripted-event draw + gamble rolls) for the node at `nodeKey`. */
+export function eventSeedFor(runSeed: number, nodeKey: number): number {
+  return deriveSeed(deriveSeed(runSeed, RUN_TAG_EVENT), nodeKey);
 }

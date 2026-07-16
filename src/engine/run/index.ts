@@ -56,3 +56,86 @@ export type { RelicEncounterOptions } from './relicHooks';
 // ── Relics: drafting ─────────────────────────────────────────────────────────
 export { draftOptions, applyDraft, DRAFT_OPTION_COUNT, DRAFT_WEIGHT_MATCH, DRAFT_WEIGHT_OFF } from './draft';
 export type { DraftResult } from './draft';
+
+// ── Run seed tree (wave-2 per-node sub-streams) ──────────────────────────────
+export {
+  RUN_TAG_ENEMY,
+  RUN_TAG_ENCOUNTER,
+  RUN_TAG_SHOP,
+  RUN_TAG_EVENT,
+  nodeSeedKey,
+  enemySeedFor,
+  encounterSeedFor,
+  shopSeedFor,
+  eventSeedFor,
+} from './runSeeds';
+
+// ── Economy: config + performance-scaled gold ────────────────────────────────
+export {
+  GOLD_BASE,
+  GOLD_SPEED_BONUS_MAX,
+  GOLD_MEDIAN_TURNS,
+  GOLD_HP_BONUS_MAX,
+  ELITE_GOLD_MULT,
+  STARTING_GOLD,
+  SHOP_RELIC_MIN,
+  SHOP_RELIC_MAX,
+  SHOP_PRICE_NORMAL,
+  SHOP_PRICE_ELITE,
+  SHOP_HEAL_AMOUNT,
+  SHOP_HEAL_PRICE,
+  REST_HEAL_FRACTION,
+  EVENT_RELIC_FALLBACK_GOLD,
+  EVENT_MIN_HP,
+  DEFAULT_ECONOMY_CONFIG,
+} from './economyConfig';
+export type { EconomyConfig } from './economyConfig';
+export { computeGoldReward } from './gold';
+export type { GoldContext } from './gold';
+
+// ── Economy: shop / rest / events ────────────────────────────────────────────
+export { generateShop, buyShopItem, shopHasLegalAction } from './shop';
+export type { ShopItem, ShopRelicItem, ShopHealItem, ShopState, ShopGenResult, BuyResult, BuyRejection } from './shop';
+export { createRestState, restHeal, applyRest } from './rest';
+export type { RestState, RestResult } from './rest';
+export { EVENTS, EVENT_IDS, getEvent, eventForSeed, resolveEventChoice, applyEventEffect, eventHasLegalAction } from './events';
+export type {
+  GameEvent,
+  EventChoice,
+  EventOutcome,
+  EventGamble,
+  EventEffect,
+  EventApplyState,
+  EventApplyResult,
+} from './events';
+
+// ── Run lifecycle: difficulty config, enemy scaling, boss ─────────────────────
+export {
+  ENCOUNTER_POOL,
+  RUN_PLAYER_MAX_HP,
+  HP_DIFFICULTY_DAMPEN,
+  ATTACK_DIFFICULTY_DAMPEN,
+  ELITE_HP_MULT,
+  ELITE_ATTACK_MULT,
+  BOSS_BASE_HP,
+  BOSS_HP_DAMPEN,
+  BOSS_NOMINAL_ENEMY_ID,
+  BOSS_NAME,
+} from './runConfig';
+export { scaleEnemy, scaledEnemyFor, selectEnemy } from './enemyScaling';
+export { BOSS_PHASES, bossMaxHp, bossPhaseForHp, bossEnemyForPhase, syncBossPhase } from './boss';
+export type { BossPhase, BossSyncResult } from './boss';
+
+// ── Run state + flow (the lifecycle state machine) ───────────────────────────
+export type { RunState, RunPhase, RunStatus, EncounterKind, RunAction } from './runTypes';
+export { isTerminal, legalActions, currentRunNode, assertRunActive, assertRunPhase } from './runTypes';
+export { startRun, enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, abandonRun } from './runFlow';
+export type { RunOptions, EncounterTurnResult } from './runFlow';
+export { buyFromShop, leaveShop, chooseEventOption, restAtNode, leaveRest } from './runNodes';
+export type { ShopBuyResult } from './runNodes';
+
+// ── Save/load port + deterministic scripted policies (headless play) ─────────
+export { InMemoryRunStore, saveOnNodeCompletion } from './runStore';
+export type { RunStorePort } from './runStore';
+export { greedyComboPath, trivialSwapPath, stepRun, driveRun } from './runPolicy';
+export type { DriveResult } from './runPolicy';

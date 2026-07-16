@@ -100,6 +100,16 @@ export interface CombatEffects {
  */
 export interface CombatState {
   readonly enemyId: EnemyId;
+  /**
+   * OPTIONAL Stage-3 run-layer enemy override (the flagged seam — mirrors the CombatModifiers
+   * seam's optional discipline). When present it SUPERSEDES the registry lookup of `enemyId`
+   * for this encounter: the run layer supplies difficulty-scaled fights, elites, and the
+   * multi-phase boss (whose affinity table + intent script change per phase) as plain `Enemy`
+   * data. When ABSENT (all Stage-2 combat + the combat sim), behavior is byte-identical to the
+   * registry-driven engine — `enemyId` alone decides the enemy. Plain data, so it serializes
+   * with the rest of CombatState and survives save/load.
+   */
+  readonly enemy?: Enemy;
   readonly board: Board;
   /** Refill RNG for `resolveMove`, threaded move-to-move (board convention). */
   readonly rngState: RngState;

@@ -57,13 +57,17 @@ export function startEncounter(
   seed: number,
   source: TileSource = uniformTileSource,
   config: CombatConfig = DEFAULT_COMBAT_CONFIG,
+  enemyDef?: Enemy,
 ): CombatState {
-  const enemy = getEnemy(enemyId); // throws on unknown id (boundary validation)
+  // `enemyDef` is the OPTIONAL Stage-3 run-layer override (scaled / boss enemies). When
+  // omitted this is byte-identical to the Stage-2 engine (registry lookup by id).
+  const enemy = enemyDef ?? getEnemy(enemyId); // throws on unknown id (boundary validation)
   const { boardSeed, moveSeed } = deriveStreams(seed);
   const board = createBoard(boardSeed, source);
 
   return {
     enemyId,
+    ...(enemyDef ? { enemy: enemyDef } : {}),
     board,
     rngState: createRng(moveSeed),
     playerHp: config.playerMaxHp,
@@ -131,7 +135,9 @@ export function playTurn(
     throw new Error(`playTurn: encounter is already ${state.status}; no further moves`);
   }
 
-  const enemy: Enemy = getEnemy(state.enemyId);
+  // Run-layer enemy override (scaled / boss) supersedes the registry when present; absent ⇒
+  // byte-identical Stage-2 behavior. `state.enemy` threads across turns via `{ ...state }`.
+  const enemy: Enemy = state.enemy ?? getEnemy(state.enemyId);
 
   // 1. Board resolves fully (all cascades). Path validation lives here.
   const move = resolveMove(state.board, path, state.rngState, source);

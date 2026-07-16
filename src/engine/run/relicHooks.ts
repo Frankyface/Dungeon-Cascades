@@ -16,7 +16,7 @@
  * PURE ENGINE: no React / React Native imports; deterministic; never mutates input.
  */
 import type { Path, TileSource } from '../board';
-import type { CombatConfig, CombatModifiers, CombatState, EnemyId, TurnResolution } from '../combat';
+import type { CombatConfig, CombatModifiers, CombatState, Enemy, EnemyId, TurnResolution } from '../combat';
 import { playTurn, startEncounter } from '../combat';
 import { RELIC_REGISTRY } from './relics';
 import type { HookName, RelicContext, RelicModifier, RelicRegistry } from './relicTypes';
@@ -131,6 +131,12 @@ export interface RelicEncounterOptions {
   readonly registry?: RelicRegistry;
   /** Player HP when the fight begins (HP persists across nodes); defaults to max HP. */
   readonly startingPlayerHp?: number;
+  /**
+   * Run-layer enemy override (difficulty-scaled fight / elite / boss). Passed straight to
+   * combat's `startEncounter`; when omitted the base registry enemy is used. See the combat
+   * `CombatState.enemy` seam.
+   */
+  readonly enemy?: Enemy;
 }
 
 /**
@@ -147,7 +153,7 @@ export function startEncounterWithRelics(
   options: RelicEncounterOptions = {},
 ): CombatState {
   const registry = options.registry ?? RELIC_REGISTRY;
-  const base = startEncounter(enemyId, seed, options.source, options.config);
+  const base = startEncounter(enemyId, seed, options.source, options.config, options.enemy);
   const chip = combatStartEnemyChip(relicIds, registry);
   const heal = combatStartPlayerHeal(relicIds, registry);
   const startHp = options.startingPlayerHp ?? base.playerMaxHp;
