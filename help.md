@@ -20,14 +20,38 @@ needed, a link if one is known, and which stage it blocks.
   Link: https://apps.apple.com/app/expo-go/id982107779
   Blocks: **Stage 1** on-device testing and the fun gate.
 
-- [ ] **Confirm Apple Developer account status.**
-  What: check whether Cam already has an active Apple Developer Program membership —
-  Cam may already have one from the earlier drill-deck app.
-  Why: a Developer account is required for TestFlight distribution so friends can play.
-  It is **only** needed at Stage 5; Stage 1 works in Expo Go without it, so this is not
-  urgent — just confirm the status before Stage 5.
+- [ ] **Active Apple Developer Program membership (now needed — TestFlight path chosen).**
+  What: an active Apple Developer Program membership ($99/yr). Cam may already have one
+  from the earlier drill-deck app.
+  Why: Cam has chosen to run the Stage 1 fun gate through TestFlight (not local Expo Go),
+  so a paid membership is required NOW, not just at Stage 5 — TestFlight cannot distribute
+  a build without it.
   Link: https://developer.apple.com/account
-  Blocks: **Stage 5** (TestFlight / sharing with friends) only.
+  Blocks: **the TestFlight fun-gate build** (see next item).
+
+- [ ] **Build & push to TestFlight — run the authenticated commands (Claude cannot; they need your logins).**
+  The repo is fully configured for this: bundle id `com.frankyface.dungeoncascades`,
+  `eas.json` with a `production` profile (auto-incrementing build numbers), app name
+  "Dungeon Cascades". Claude cannot run these because each needs YOUR credentials
+  (Expo account + Apple ID) — entering those is yours to do. In the project folder:
+  1. `npm install -g eas-cli` (or use `npx eas-cli@latest` for each command below).
+  2. `eas login` — sign in to your Expo account (create a free one at https://expo.dev if needed).
+  3. `eas init` — links this repo to a new EAS project and writes the project id into
+     `app.json` (commit that change afterward, or ask a Claude session to).
+  4. In **App Store Connect**, create the app record first: My Apps → + → New App, and set
+     the bundle id to **`com.frankyface.dungeoncascades`** (must match exactly, or the
+     submit fails with "No suitable application records found").
+  5. `eas build -p ios --profile production` — the first run prompts for your Apple ID to
+     generate the distribution certificate + provisioning profile (let EAS manage them).
+  6. `eas submit -p ios --profile production` — uploads the build to TestFlight. It will
+     ask for your Apple ID / the App Store Connect app; provide them at the prompt.
+     (Shortcut for steps 5–6 combined: `npx testflight`.)
+  7. In App Store Connect → TestFlight, add yourself as an internal tester; the build
+     appears in the TestFlight app on your iPhone within a few minutes (no review needed
+     for internal testers).
+  Note: the app currently uses the default Expo icon (placeholder) — fine for TestFlight;
+  swap in real art before any public release.
+  Blocks: **the Stage 1 fun gate** (below).
 
 - [x] **Verify Node.js 20+ and npm are installed on the Windows dev machine.**
   What: confirm a current Node.js LTS (version 20 or newer) and npm are installed and on
@@ -40,10 +64,11 @@ needed, a link if one is known, and which stage it blocks.
 
 - [ ] **Run the Stage 1 fun gate on your iPhone (the big one).**
   What: the naked board is built and all automated checks pass. Playing it and judging it
-  is yours alone: (1) `npx expo start` in the project folder, scan the QR with Expo Go on
-  your iPhone; (2) drag tiles, build cascades, feel the ~5s timer; (3) open the Expo dev
-  menu (shake the phone) → "Show performance monitor" and watch the UI/JS FPS during a
-  drag and during a big cascade — note the numbers; (4) play until you have a verdict and
+  is yours alone: (1) install the TestFlight build from the item above (or, for a faster
+  loop, `npx expo start` + Expo Go); (2) drag tiles, build cascades, feel the ~5s timer;
+  (3) watch the frame rate during a drag and during a big cascade — in a TestFlight
+  (release) build use Xcode/Instruments or just judge visible smoothness, since the JS
+  performance overlay is a dev-build feature; note what you observe; (4) play until you have a verdict and
   then record it, dated, in `docs/decisions.md` as `## <date> — Stage 1 fun gate` with
   **continue**, **pivot**, or **kill** and a sentence or two of why. Also paste your FPS
   numbers into `staging/stage-1-naked-board/feature-device-performance.md`'s Verification

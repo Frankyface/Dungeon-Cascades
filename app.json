@@ -1,16 +1,18 @@
 {
   "expo": {
-    "name": "tmp-expo",
-    "slug": "tmp-expo",
+    "name": "Dungeon Cascades",
+    "slug": "dungeon-cascades",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "tmpexpo",
+    "scheme": "dungeoncascades",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.frankyface.dungeoncascades",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.frankyface.dungeoncascades",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

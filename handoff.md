@@ -12,19 +12,19 @@ the continue/pivot/kill verdict.
   combos/move (~9.7× skill gap: skill dominates luck on the naked board).
 - Drag-input UI: **awaiting verification** — built + 42 logic tests + clean iOS bundle;
   on-device feel untested.
-- Device perf + fun gate: **awaiting verification** — build ready; no fps numbers, no verdict yet.
-- Suite: 16 suites / 100 tests green · `npx tsc --noEmit` clean · `npx expo export` clean.
+- Device perf + fun gate: **awaiting verification** — build ready, TestFlight/EAS configured; no verdict yet.
+- Suite: 16 suites / 100 tests green · `tsc` clean · `expo export` clean · `expo-doctor` 20/20.
 
 ## 📂 Files I'm Working On
 - `staging/stage-1-naked-board/feature-device-performance.md` — the active feature (Cam's fun gate).
 - `help.md` — has Cam's exact fun-gate procedure.
 
 ## ✅ Things I've Changed
+- 2026-07-15 — TestFlight/EAS configured: bundle id `com.frankyface.dungeoncascades`, `eas.json`, app renamed from tmp-expo.
 - 2026-07-15 — Skia drag-input UI built (`src/ui/board/`, `app/index.tsx`); awaiting on-device check.
 - 2026-07-15 — Sim bots + stats CLI built and verified (`src/engine/sim/`, `npm run sim`).
 - 2026-07-15 — Board engine built and verified (`src/engine/board/`).
 - 2026-07-15 — Refill RNG settled by structured debate: uniform random behind a seeded TileSource seam.
-- 2026-07-15 — Expo SDK 57 skeleton (ts-jest pipeline, Skia/Reanimated/Gesture Handler).
 
 ## ❌ Watch Out
 - Greedy sim runs cost ~100s per 1000 games (DFS depth 4) — drop `greedyMaxDepth` to 3 for fast iteration.
@@ -32,12 +32,13 @@ the continue/pivot/kill verdict.
 - UI must never re-implement engine logic — the replay test pins UI output to `finalBoard`; keep it green.
 
 ## ➡️ Next Up
-1. **Cam:** run the fun gate (procedure in `help.md`): `npx expo start` → Expo Go → play →
-   fps numbers into feature-device-performance.md → verdict into `docs/decisions.md`.
-2. If verdict = continue: flip the two awaiting-verification features per their logs, close
-   Stage 1 in `overview.md`, then spec Stage 2's tile taxonomy (`staging/stage-2-combat/`).
-3. If pivot/kill: record it in `docs/failed-approaches.md` + decisions.md — that is a
-   successful Stage 1 outcome, not a failure.
+1. **Cam:** push to TestFlight — run the authenticated commands in `help.md` (`eas login`
+   → `eas init` → `eas build -p ios --profile production` → `eas submit`). Needs your Expo +
+   Apple logins, so Claude can't run them; everything else is configured.
+2. **Cam:** play the TestFlight build; record continue/pivot/kill in `docs/decisions.md`
+   (+ perf notes in feature-device-performance.md). That closes the fun gate.
+3. If continue: flip the two awaiting-verification features, close Stage 1 in `overview.md`,
+   spec Stage 2 tile taxonomy. If pivot/kill: log it — a successful Stage 1 outcome.
 
 ## 🔗 Pointer
 Current stage folder: `staging/stage-1-naked-board/`
