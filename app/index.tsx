@@ -1,5 +1,5 @@
-import { BoardScreen } from '../src/ui/board/BoardScreen';
+import { MenuScreen } from '../src/ui/menu/MenuScreen';
 
 export default function Index() {
-  return <BoardScreen />;
+  return <MenuScreen />;
 }

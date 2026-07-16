@@ -4,25 +4,17 @@
  * resolution wave-by-wave. This is the container — all reusable/pure pieces live in
  * sibling modules; this file only wires them to React + gestures + Reanimated.
  *
+ * The wave animation itself is the shared `useWaveAnimator` hook (also used by the
+ * combat screen) so the cascade replay is never forked.
+ *
  * Input is locked during resolution (phase `resolving`): touches are ignored until
  * the waves finish and the board settles back to `idle`.
  */
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import {
-  Easing,
-  runOnJS,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import {
-  indexOf,
-  resolveMove,
-  tileAt,
-  type Board,
-  type MoveResolution,
-} from '../../engine/board';
+import { runOnJS, useSharedValue, withTiming } from 'react-native-reanimated';
+import { indexOf, resolveMove, tileAt, type MoveResolution } from '../../engine/board';
 import { ANIM, MOVE_TIMER_MS, PICKUP_SCALE } from './constants';
 import { BOARD_COLORS } from './colors';
 import { computeBoardLayout, cellCenter, pixelToCell } from './layout';
@@ -37,17 +29,13 @@ import {
   toEnginePath,
   type DragPath,
 } from './pathBuilder';
-import { buildWaveViews } from './resolutionModel';
 import { gameReducer, initGameState } from './gameReducer';
 import { SkiaBoard, type BoardFrame } from './SkiaBoard';
 import { MoveTimerBar } from './MoveTimerBar';
+import { useWaveAnimator } from './useWaveAnimator';
 
 const DEV_SEED = 1337;
 const EMPTY_CELLS: ReadonlySet<number> = new Set<number>();
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function BoardScreen() {
   const { width } = useWindowDimensions();
@@ -55,15 +43,14 @@ export function BoardScreen() {
 
   const [state, dispatch] = useReducer(gameReducer, DEV_SEED, initGameState);
 
-  // Animation shared values.
-  const progress = useSharedValue(1);
+  // Shared cascade-animation player (frame + combo + clock).
+  const { animFrame, activeCombo, progress, playWaves, reset } = useWaveAnimator(layout);
+
+  // Drag-specific animation shared values.
   const fingerX = useSharedValue(0);
   const fingerY = useSharedValue(0);
   const heldScale = useSharedValue(1);
 
-  // Per-wave render frame + combo readout while resolving.
-  const [animFrame, setAnimFrame] = useState<BoardFrame | null>(null);
-  const [activeCombo, setActiveCombo] = useState(0);
   const [timerRunNonce, setTimerRunNonce] = useState(0);
 
   // Refs the gesture/timeout callbacks read (they run outside React's render).
@@ -73,13 +60,10 @@ export function BoardScreen() {
   layoutRef.current = layout;
   const dragRef = useRef<DragPath | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
   const zeroDy = useMemo(() => new Array<number>(layout.cols * layout.rows).fill(0), [layout]);
 
   useEffect(() => {
-    mountedRef.current = true;
     return () => {
-      mountedRef.current = false;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
@@ -122,11 +106,7 @@ export function BoardScreen() {
     if (s.phase !== 'dragging' || !d) return;
     // Catch-up loop: commit steps while the finger stays past the threshold from
     // the (advancing) held centre, so a fast flick still traces the full orthogonal
-    // path instead of losing cells. The ref advances synchronously so a burst of
-    // gesture events before the next React render cannot double-commit a step, and
-    // the loop naturally stops once the finger is inside the current dead-zone.
-    // The guard is a belt-and-braces bound; `canAppendStep` (MAX_PATH_STEPS) is the
-    // real cap.
+    // path instead of losing cells.
     for (let guard = 0; guard < 8; guard++) {
       const center = cellCenter(layoutRef.current, heldPosition(d));
       const dir = resolveCommitDirection(center, { x, y }, layoutRef.current.pitch);
@@ -174,69 +154,20 @@ export function BoardScreen() {
     dispatch({ type: 'beginResolve' });
     const postSwap = displayBoard(s.board, d);
     const resolution = resolveMove(s.board, toEnginePath(d), s.rng);
-    void playResolution(resolution, postSwap);
+    void animateThenSettle(resolution, postSwap);
   }
 
-  function runProgress(durationMs: number, easing: (t: number) => number) {
-    progress.value = 0;
-    progress.value = withTiming(1, { duration: durationMs, easing });
-  }
-
-  async function playResolution(resolution: MoveResolution, postSwap: Board) {
-    const views = buildWaveViews(postSwap, resolution);
-    if (views.length === 0) {
-      finishResolve(resolution);
-      return;
-    }
-
-    for (const view of views) {
-      if (!mountedRef.current) return;
-
-      // Clear phase: show the pre-wave board, fade the cleared group.
-      const clearing = new Set<number>(view.clearedCells.map((p) => indexOf(view.boardBefore, p)));
-      setAnimFrame({
-        colors: view.boardBefore.tiles,
-        clearing,
-        startDy: zeroDy,
-        hiddenCell: null,
-      });
-      runProgress(ANIM.clearMs, Easing.linear);
-      await delay(ANIM.clearMs);
-      if (!mountedRef.current) return;
-
-      setActiveCombo(view.cumulativeCombos);
-
-      // Fall phase: show the post-wave board, drop falls + spawns into place.
-      const startDy = new Array<number>(layoutRef.current.cols * layoutRef.current.rows).fill(0);
-      for (const drop of view.drops) {
-        startDy[drop.cell] = drop.dyCells * layoutRef.current.pitch;
-      }
-      setAnimFrame({
-        colors: view.boardAfter.tiles,
-        clearing: EMPTY_CELLS,
-        startDy,
-        hiddenCell: null,
-      });
-      runProgress(ANIM.fallMs, Easing.out(Easing.cubic));
-      await delay(ANIM.fallMs + ANIM.waveGapMs);
-    }
-
-    finishResolve(resolution);
-  }
-
-  function finishResolve(resolution: MoveResolution) {
+  async function animateThenSettle(resolution: MoveResolution, postSwap: Parameters<typeof playWaves>[0]) {
+    await playWaves(postSwap, resolution);
     dispatch({ type: 'settle', resolution });
-    setAnimFrame(null);
-    progress.value = 1;
+    reset();
   }
 
   function handleNewBoard() {
     if (state.phase === 'resolving') return;
     clearMoveTimeout();
     dragRef.current = null;
-    setAnimFrame(null);
-    setActiveCombo(0);
-    progress.value = 1;
+    reset();
     heldScale.value = 1;
     dispatch({ type: 'newBoard', seed: state.seed + 1 });
   }
