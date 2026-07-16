@@ -62,6 +62,16 @@ needed, a link if one is known, and which stage it blocks.
   Blocks: **Stage 1** first task (scaffolding the Expo app).
   ✅ Verified 2026-07-15 by a Claude session: Node v24.15.0, npm 11.16.0.
 
+- [ ] **Provide sounds & graphics for Stage 5 (you offered — here's the shopping list).**
+  What: the assets Stage 5 integrates. Sounds (short SFX, .wav or .m4a): tile pickup, swap tick,
+  match-clear pop, cascade chain (rising pitch variants welcome), enemy hit, weakness hit, player hurt,
+  heal, victory sting, defeat sting, UI tap. Optional: one ambient/music loop. Graphics: 5 tile faces
+  (R/G/B/Y/P — readable at ~55px), enemy art for slime/skeleton/bat + one boss, app icon (1024×1024),
+  splash image, and optionally relic icons (~12) and node-type map icons (fight/elite/event/shop/rest/boss).
+  Why: the build intentionally stops after Stage 4 until these arrive (decisions.md, 2026-07-15) — juice
+  and art integration happen against your real assets, not placeholders.
+  Blocks: **Stage 5** only.
+
 - [ ] **Run the Stage 1 fun gate on your iPhone (the big one).**
   What: the naked board is built and all automated checks pass. Playing it and judging it
   is yours alone: (1) install the TestFlight build from the item above (or, for a faster
