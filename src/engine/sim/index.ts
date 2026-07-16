@@ -25,6 +25,10 @@ export { deriveSeed, gameSeedFor, SEED_TAG_BOARD, SEED_TAG_BOT, SEED_TAG_MOVE } 
 // Fast match-group counter (used by greedyBot; exported for testing/reuse).
 export { countMatchGroups } from './matchCount';
 
+// Shared bounded path search (used by both greedy bots).
+export { searchBestPath } from './pathSearch';
+export type { ScoreCodes } from './pathSearch';
+
 // Bots.
 export { randomBot } from './randomBot';
 export { greedyBot } from './greedyBot';
@@ -41,3 +45,29 @@ export {
   summarizeTiming,
 } from './stats';
 export type { HistogramBin, SimSummary, TimingSummary } from './stats';
+
+// ── Combat sim (Stage 2) ─────────────────────────────────────────────────────
+// Combat bots + first-wave scorer.
+export { greedyCombatBot, randomCombatBot, HEAL_HP_FRACTION } from './combatBots';
+export { scoreFirstWave } from './combatScore';
+export type { ColorWeights } from './combatScore';
+
+// Combat game + harness.
+export { playEncounter } from './combatGame';
+export { COMBAT_BOTS, runCombatHarness } from './combatHarness';
+
+// Combat aggregation + reporting.
+export { formatCombatReport, summarizeCombat } from './combatStats';
+export type { CombatSummary } from './combatStats';
+
+// Combat data model.
+export { DEFAULT_MAX_TURNS } from './combatTypes';
+export type {
+  CombatBot,
+  CombatBotContext,
+  CombatBotName,
+  CombatGameResult,
+  CombatHarnessConfig,
+  CombatMoveStat,
+  EncounterOutcome,
+} from './combatTypes';
