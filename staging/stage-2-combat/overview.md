@@ -1,8 +1,9 @@
 # Stage 2 — Combat
 
-_Status: not started · Folder: `staging/stage-2-combat/`_
-_Gated on: the Stage 1 fun gate returning **continue**. Do NOT start Stage 2 until that decision is
-recorded in `docs/decisions.md`._
+_Status: in progress (started 2026-07-15) · Folder: `staging/stage-2-combat/`_
+_Gate note: originally gated on the Stage 1 fun gate; Cam explicitly directed building ahead while his
+TestFlight verdict is pending (see decisions.md "Build Stages 2–5 ahead of the fun-gate verdict"). If the
+verdict is pivot/kill, this work stops and the verdict governs._
 
 ## Goal
 Make matching **mean something**. Stage 1 proves the drag-path cascade board is fun in a vacuum; Stage 2
