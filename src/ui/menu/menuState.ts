@@ -27,3 +27,13 @@ export function runSection(hydration: MenuHydration, hasSave: boolean): RunSecti
   }
   return hasSave ? { kind: 'resume' } : { kind: 'start' };
 }
+
+/**
+ * Combined menu hydration (Stage 4): the run section stays `loading` until BOTH the run store AND
+ * the meta store are hydrated. The run store guards against clobbering an unread save; the meta
+ * store guards against starting a run (and later banking it) before the saved profile is adopted —
+ * which would show the wrong unlocked variants and bank onto a blank total. Ready needs both.
+ */
+export function menuHydration(runHydrated: boolean, metaHydrated: boolean): MenuHydration {
+  return runHydrated && metaHydrated ? 'ready' : 'loading';
+}

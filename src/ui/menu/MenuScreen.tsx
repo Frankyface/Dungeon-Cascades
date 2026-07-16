@@ -11,8 +11,9 @@ import { ENEMY_IDS, getEnemy } from '../../engine/combat';
 import type { EnemyId } from '../../engine/combat';
 import { COMBAT_COLORS } from '../combat/combatColors';
 import { ENEMY_GLYPH, buildAffinityChips, enemyName } from '../combat/combatFormat';
-import { hydrateRunStore, isRunStoreHydrated, runStore, stageNewRun, stageResumeRun } from '../run/runController';
-import { runSection, type MenuHydration } from './menuState';
+import { hydrateRunStore, isRunStoreHydrated, runStore, stageResumeRun } from '../run/runController';
+import { hydrateMetaStore, isMetaStoreHydrated, metaState } from '../run/metaController';
+import { menuHydration, runSection, type MenuHydration } from './menuState';
 
 function weaknessHint(enemyId: EnemyId): string {
   const chips = buildAffinityChips(getEnemy(enemyId).affinity);
@@ -27,20 +28,23 @@ export function MenuScreen() {
   // Lazy-init from the store: on a warm remount (returning from a run) the mirror is already
   // hydrated, so the run section renders its final state with no "Loading…" flash.
   const [hasSave, setHasSave] = useState(() => runStore().load() !== null);
+  const [totalScore, setTotalScore] = useState(() => metaState().score);
   const [hydration, setHydration] = useState<MenuHydration>(() =>
-    isRunStoreHydrated() ? 'ready' : 'loading',
+    menuHydration(isRunStoreHydrated(), isMetaStoreHydrated()),
   );
 
-  // Cold-start: hydrate the saved run from disk BEFORE the run section becomes interactive, so a
-  // premature "Start a run" tap can't stage + save a fresh run over the still-unread save (data
-  // loss). Runs once on mount; a failed read is treated as "no save". hydrateRunStore is idempotent,
-  // so a warm remount resolves instantly without re-reading disk.
+  // Cold-start: hydrate BOTH the saved run and the meta profile from disk BEFORE the run section
+  // becomes interactive. The run store guards against a premature "Start a run" tap clobbering an
+  // unread save; the meta store must be adopted before a run starts so variant unlocks and score
+  // banking act on the real profile, not a blank one. Both reads are idempotent, so a warm remount
+  // resolves instantly; a failed read falls back to "no save" / a fresh profile.
   useEffect(() => {
     let active = true;
-    hydrateRunStore()
-      .then((saved) => {
+    Promise.all([hydrateRunStore(), hydrateMetaStore()])
+      .then(([saved, meta]) => {
         if (!active) return;
         setHasSave(saved !== null);
+        setTotalScore(meta.score);
         setHydration('ready');
       })
       .catch(() => {
@@ -53,10 +57,10 @@ export function MenuScreen() {
     };
   }, []);
 
-  const startNewRun = (): void => {
-    stageNewRun();
-    setHasSave(true);
-    router.push('/run');
+  // Starting a run now leads to the start-selection screen (vanilla + any unlocked variants),
+  // which stages the chosen start and hands off to the run group.
+  const goToStartSelect = (): void => {
+    router.push('/start');
   };
 
   const continueRun = (): void => {
@@ -79,6 +83,7 @@ export function MenuScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Dungeon Cascades</Text>
         <Text style={styles.subtitle}>Stage 3 · The Run</Text>
+        {hydration === 'ready' ? <Text style={styles.metaScore}>Total score {totalScore}</Text> : null}
       </View>
 
       <Text style={styles.sectionLabel}>The Run</Text>
@@ -103,18 +108,18 @@ export function MenuScreen() {
             <Text style={styles.cardTitle}>🗑 Abandon run</Text>
             <Text style={styles.cardHint}>Delete the save and clear the slot</Text>
           </Pressable>
-          <Pressable onPress={startNewRun} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+          <Pressable onPress={goToStartSelect} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
             <Text style={styles.cardTitle}>✦ Start a new run</Text>
             <Text style={styles.cardHint}>Abandon the current save and begin fresh</Text>
           </Pressable>
         </>
       ) : (
         <Pressable
-          onPress={startNewRun}
+          onPress={goToStartSelect}
           style={({ pressed }) => [styles.card, styles.runCard, pressed && styles.pressed]}
         >
           <Text style={styles.cardTitle}>⚔ Start a run</Text>
-          <Text style={styles.cardHint}>Climb the dungeon: fights, relics, shops — one life</Text>
+          <Text style={styles.cardHint}>Pick your start — vanilla or an unlocked variant</Text>
         </Pressable>
       )}
 
@@ -176,6 +181,12 @@ const styles = StyleSheet.create({
     color: COMBAT_COLORS.subtle,
     fontSize: 14,
     fontWeight: '600',
+  },
+  metaScore: {
+    color: '#f5c542',
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
   },
   sectionLabel: {
     color: COMBAT_COLORS.subtle,

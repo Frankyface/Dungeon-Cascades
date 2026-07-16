@@ -41,9 +41,13 @@ export function makeRunSeed(): number {
 /**
  * Prepare a BRAND-NEW run for the provider to pick up, and persist it immediately so a cold
  * start (before any node completes) still offers Continue. Returns the fresh run.
+ *
+ * `variantId` is OPTIONAL (Stage 4): omit it for a vanilla start (byte-identical to before), or
+ * pass a variant id (from the start-selection screen) to begin from that sidegrade. The engine's
+ * `startRun` validates the id and bakes the variant's modifiers into the initial state.
  */
-export function stageNewRun(seed: number = makeRunSeed()): RunState {
-  staged = startRun(seed);
+export function stageNewRun(seed: number = makeRunSeed(), variantId?: string): RunState {
+  staged = startRun(seed, variantId);
   store.save(staged);
   return staged;
 }

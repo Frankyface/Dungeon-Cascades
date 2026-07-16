@@ -4,11 +4,15 @@
  * main menu. All numbers come from the pure `computeRunSummary` view-model; the save was already
  * cleared when the run went terminal.
  */
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { Redirect } from 'expo-router';
+import { getVariant } from '../../engine/run';
 import { RelicCardView } from './RelicCardView';
 import { relicCards } from './relicPresentation';
 import { computeRunSummary } from './runSummary';
+import { bankRunOutcome } from './metaController';
+import type { BankOutcome } from './metaBanking';
 import { RUN_COLORS } from './runColors';
 import { useRun } from './RunContext';
 
@@ -19,6 +23,16 @@ interface RunOutcomeScreenProps {
 export function RunOutcomeScreen({ outcome }: RunOutcomeScreenProps) {
   const run = useRun();
   const state = run.state;
+  const [bank, setBank] = useState<BankOutcome | null>(null);
+
+  // Bank this terminal run's score into the meta profile — exactly ONCE. The controller's ledger
+  // guard (keyed by run identity) makes a re-mount / re-visit of this screen a no-op that replays
+  // the same outcome, so the score can never double-count. The banked outcome drives the display.
+  useEffect(() => {
+    if (state === null) return;
+    setBank(bankRunOutcome(state));
+  }, [state]);
+
   if (state === null) {
     return <Redirect href="/" />;
   }
@@ -34,6 +48,23 @@ export function RunOutcomeScreen({ outcome }: RunOutcomeScreenProps) {
       <Text style={styles.subtitle}>
         {won ? 'The Bone Colossus falls. The dungeon is yours.' : `Fell on floor ${summary.floorsReached + 1} of ${summary.floorCount}.`}
       </Text>
+
+      {bank !== null ? (
+        <View style={styles.metaPanel}>
+          <View style={styles.scoreRow}>
+            <Text style={styles.scoreBanked}>+{bank.runScore}</Text>
+            <Text style={styles.scoreBankedLabel}>score banked</Text>
+          </View>
+          <Text style={styles.totalScore}>Total score {bank.totalScore}</Text>
+          {bank.newlyUnlockedIds.length > 0 ? (
+            <View style={styles.unlockBanner}>
+              <Text style={styles.unlockText}>
+                🔓 Unlocked: {bank.newlyUnlockedIds.map((id) => getVariant(id).name).join(', ')}!
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.statGrid}>
         <Stat label="Nodes cleared" value={`${summary.nodesCompleted}`} />
@@ -79,6 +110,28 @@ const styles = StyleSheet.create({
   content: { paddingTop: 80, paddingHorizontal: 20, paddingBottom: 44, gap: 14, alignItems: 'stretch' },
   title: { fontSize: 34, fontWeight: '900', textAlign: 'center' },
   subtitle: { color: RUN_COLORS.subtle, fontSize: 15, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
+  metaPanel: {
+    backgroundColor: RUN_COLORS.panelBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: RUN_COLORS.panelBorder,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 6,
+    alignItems: 'center',
+  },
+  scoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  scoreBanked: { color: RUN_COLORS.gold, fontSize: 30, fontWeight: '900' },
+  scoreBankedLabel: { color: RUN_COLORS.subtle, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  totalScore: { color: RUN_COLORS.text, fontSize: 15, fontWeight: '700' },
+  unlockBanner: {
+    marginTop: 6,
+    backgroundColor: RUN_COLORS.accent,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  unlockText: { color: RUN_COLORS.winText, fontSize: 15, fontWeight: '900', textAlign: 'center' },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   stat: {
     flexGrow: 1,
