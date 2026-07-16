@@ -20,8 +20,8 @@ skeleton** before any feature work:
   run in Expo Go).
 
 ## Features
-- [ ] `feature-board-engine.md` — headless pure-TS engine: grid state, seeded tile spawn, drag-path move
-      resolution, match detection, cascade/combo resolution, gravity/refill.
+- [x] `feature-board-engine.md` — headless pure-TS engine: grid state, seeded tile spawn, drag-path move
+      resolution, match detection, cascade/combo resolution, gravity/refill. (verified done 2026-07-15)
 - [ ] `feature-drag-input-ui.md` — Skia board renderer + gesture drag-path input + visible move timer.
 - [ ] `feature-sim-bot.md` — headless random-path + greedy bots and a stats CLI over N seeded games.
 - [ ] `feature-device-performance.md` — the 60fps tech spike + the fun-gate build and recorded decision.
@@ -29,9 +29,9 @@ skeleton** before any feature work:
 ## Definition of done (testable checklist)
 Stage 1 is done only when EVERY box below can be checked with real evidence:
 
-- [ ] The engine resolves drag-path moves — swaps, match detection, cascades, gravity and seeded refills
+- [x] The engine resolves drag-path moves — swaps, match detection, cascades, gravity and seeded refills
       — **deterministically under a seed**, with Jest unit tests achieving **≥80% coverage on
-      `src/engine/`**.
+      `src/engine/`**. (evidence: feature-board-engine.md Verification Log, 2026-07-15)
 - [ ] The **random-path and greedy** sim bots complete **1000 headless seeded games without error** and
       produce a stats report (avg combos/move, cascade-depth distribution, resolution time).
 - [ ] The board **renders on Skia** and a **finger drag-path move works on Cam's iPhone via Expo Go**,
