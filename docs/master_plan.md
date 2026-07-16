@@ -131,39 +131,66 @@ same result. That determinism is the foundation for everything — unit tests ca
 exact outcomes against hand-computed fixtures, and the sim harness can run thousands of
 reproducible headless games to measure balance without ever rendering a frame. The UI
 layer stays a thin renderer over engine state, so game logic can be verified long before
-(and independently of) how it looks or feels on device. Note: the Expo app itself is
-**not yet created** — that is Stage 1's first task. After scaffolding, only docs exist.
+(and independently of) how it looks or feels on device. Status note (updated
+2026-07-16): the Expo app now exists — the `src/engine/{board,combat,run,sim}` modules
+and the `app/` expo-router screens (menu, board sandbox, combat, and the full run flow)
+are built through Stage 3. `src/state/` was left unused: no external store proved
+necessary, so state bridges engine↔UI with plain React.
 
 ## Staged roadmap
 
 Progressive detail rule: Stage 1 is fully specified, Stage 2 moderately specified,
 Stages 3–5 are overview-only sketches.
 
-| # | Folder | Goal | Headline | Definition of done (rough) |
-|---|--------|------|----------|----------------------------|
-| 1 | `staging/stage-1-naked-board/` | Prove the core is fun BEFORE any rogue-lite wrapper | Drag-path match-3 engine on Skia, 60fps on Cam's iPhone | Engine unit-tested & deterministic; sim bots play 1000 headless games; Cam plays on-device; **FUN GATE decision recorded** |
-| 2 | `staging/stage-2-combat/` | Make matching mean something | Tile types → actions, enemies with telegraphed intents, win/lose | Beat a scripted encounter on-device; combat math unit-tested |
-| 3 | `staging/stage-3-the-run/` | The full rogue-lite loop | Node map, drafting, shop/event/rest, boss, death & victory | Complete a real 15–20 min run start to finish |
-| 4 | `staging/stage-4-meta-and-balance/` | Make it KEEP being fun | Meta-unlocks + simulation harness at scale | Balance report from sims; unlocks persist between runs |
-| 5 | `staging/stage-5-polish-and-share/` | Make it feel good, get it to friends | Juice, sound, art pass, TestFlight | Friends are playing it |
+Status column current as of 2026-07-16 (reality > this table; see `handoff.md` and the
+stage `overview.md` files for the live detail).
+
+| # | Folder | Goal | Headline | Definition of done (rough) | Status (2026-07-16) |
+|---|--------|------|----------|----------------------------|---------------------|
+| 1 | `staging/stage-1-naked-board/` | Prove the core is fun BEFORE any rogue-lite wrapper | Drag-path match-3 engine on Skia, 60fps on Cam's iPhone | Engine unit-tested & deterministic; sim bots play 1000 headless games; Cam plays on-device; **FUN GATE decision recorded** | Built (engine + sims verified done); **awaiting Cam's fun gate on-device via TestFlight** |
+| 2 | `staging/stage-2-combat/` | Make matching mean something | Tile types → actions, enemies with telegraphed intents, win/lose | Beat a scripted encounter on-device; combat math unit-tested | Built + sim-verified (taxonomy, 3 enemies, combat math, balance bands); **awaiting Cam's on-device win** |
+| 3 | `staging/stage-3-the-run/` | The full rogue-lite loop | Node map, drafting, shop/event/rest, boss, death & victory | Complete a real 15–20 min run start to finish | Built + sim-verified (13-floor map, ~12 relics, shop/event/rest, 3-phase boss, save/resume; 1000-run sim passed); **awaiting Cam's on-device full run** |
+| 4 | `staging/stage-4-meta-and-balance/` | Make it KEEP being fun | Meta-unlocks + simulation harness at scale | Balance report from sims; unlocks persist between runs | **In progress** — shape decided (starting variants, ±5pp purity band); building now |
+| 5 | `staging/stage-5-polish-and-share/` | Make it feel good, get it to friends | Juice, sound, art pass, TestFlight | Friends are playing it | **On hold** — autonomous build stops after Stage 4; starts when Cam supplies sound/art assets (decisions.md 2026-07-15) |
 
 ## Open questions & risks
 
 ### Open questions (do not resolve these unilaterally — record and settle when the owning stage arrives)
 
-- **Board size:** 6×5 default vs 7×6 — settle during Stage 1.
-- **Drag timer length** (~5s default); fixed vs relic-modifiable. **Diagonal drag:**
-  v1 default is orthogonal-only — revisit at the fun gate.
-- **Refill RNG:** pure random vs a bag / weighted system (a bag reduces luck spikes —
-  a pro-skill lever). Stage 1–2.
-- **Tile taxonomy:** what tile colors map to (proposed P&D-ish default:
-  Attack/sword, Block/shield, Mana-or-Skill, Heal/heart, Gold/coin). Stage 2 feature owns this.
-- **Combo → damage scaling curve** — Stage 2.
-- **Meta-progression purity:** unlocks = variety not power — concrete design open (Stage 4).
-- **State lib** (zustand?) and **storage** (async-storage vs MMKV) — decide when first needed.
-- **Apple Developer account status** — Cam may already have one from drill-deck; needed
-  for TestFlight in Stage 5. Stage 1 works in Expo Go without it. Tracked in `help.md`.
+**Resolved as their owning stage arrived** (full reasoning in `docs/decisions.md`):
+
+- **Board size:** ✓ 6×5 (decisions.md "Stage 1 board defaults adopted", 2026-07-15).
+- **Drag timer length:** ✓ ~5s, enforced in the UI layer (engine stays timer-agnostic)
+  (decisions.md "Stage 1 board defaults adopted").
+- **Refill RNG:** ✓ pure uniform random behind a swappable, seeded `TileSource`
+  interface, with a sim flag reserved to A/B a bag later (decisions.md "Stage 1 refill
+  RNG model"). The bag is deferred, not dismissed.
+- **Tile taxonomy:** ✓ offense-first affinity model — four elemental damage colors
+  (R/G/B/Y vs per-enemy weakness/resist) + P = Heal; every cleared group counts toward
+  the cascade multiplier (decisions.md "Tile taxonomy: offense-first affinity model").
+- **Combo → damage scaling curve:** ✓ decided, then recalibrated after first sim
+  contact (ATTACK_BASE 10→~3, enemy HP scaled up) (decisions.md "Combat math defaults"
+  + "Combat recalibration").
+- **Meta-progression purity:** ✓ power-neutral **starting variants** (sidegrades)
+  unlocked by cumulative-score tranches, each held within ±5pp of vanilla win rate by a
+  hard sim band (decisions.md "Meta-progression shape").
+- **Storage:** ✓ async-storage behind an injected persistence port, so the engine stays
+  pure (decisions.md "Stage 3 structural defaults"). **State lib:** no external store
+  proved necessary — `src/state/` is unused and state bridges engine↔UI with plain
+  React (zustand not adopted).
+
+**Still genuinely open:**
+
+- **Diagonal drag:** v1 is orthogonal-only — revisit at the fun gate.
+- **Apple Developer account status** — Cam may already have one from drill-deck; a hard
+  dependency only for TestFlight in Stage 5. Dev works in Expo Go without it. Tracked in
+  `help.md`.
 - **Final game name** — working title "Dungeon Cascades" is fine for now.
+- **Route richness (Stage 3)** — the map uses one node-role per floor, so every route
+  crosses the same node-type sequence (route choice picks the instance, not the type
+  mix). If runs feel flat on-device, move the generator to mixed-type rows (StS-style).
+  Flagged in `staging/stage-3-the-run/feature-node-map.md`; revisit at the Stage 3
+  on-device milestone.
 
 ### Top risk & its defense
 
