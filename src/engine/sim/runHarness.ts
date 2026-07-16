@@ -15,7 +15,7 @@ export function runRunHarness(config: RunHarnessConfig): RunGameResult[] {
   const results: RunGameResult[] = [];
   for (let i = 0; i < config.games; i++) {
     const seed = gameSeedFor(config.baseSeed, i);
-    results.push(playRun(seed, config.bot, config.stepCap));
+    results.push(playRun(seed, config.bot, config.stepCap, config.variantId));
   }
   return results;
 }

@@ -93,3 +93,12 @@ export type { RunSummary, RunBucketBin, RunCauseBin, RunFloorBin } from './runSt
 // Run-sim data model.
 export { DEFAULT_RUN_STEP_CAP } from './runSimTypes';
 export type { RunBotName, RunOutcome, RunDeath, RunGameResult, RunHarnessConfig } from './runSimTypes';
+
+// ── Stage 4: balance report at scale (full purity/balance matrix) ───────────────
+export { PURITY_BAND_PP, runBalanceReport, formatBalanceReport } from './balanceReport';
+export type {
+  BalanceReport,
+  BalanceReportConfig,
+  BalanceRow,
+  RelicCorrelationRow,
+} from './balanceReport';

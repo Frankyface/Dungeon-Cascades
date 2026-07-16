@@ -139,3 +139,35 @@ export { InMemoryRunStore, saveOnNodeCompletion } from './runStore';
 export type { RunStorePort } from './runStore';
 export { greedyComboPath, trivialSwapPath, stepRun, driveRun } from './runPolicy';
 export type { DriveResult } from './runPolicy';
+
+// ── Stage 4: starting variants (power-neutral run-start sidegrades) ───────────
+export {
+  VARIANTS,
+  VARIANT_REGISTRY,
+  VARIANT_IDS,
+  MIN_VARIANT_MAX_HP,
+  getVariant,
+  resolveVariantStart,
+  assertVariantsWellFormed,
+} from './variants';
+export type { RunVariant, VariantModifiers, ResolvedVariantStart } from './variants';
+
+// ── Stage 4: meta-progression (cumulative score, tranche unlocks, persistence) ─
+export {
+  META_SCORE_PER_FLOOR,
+  META_SCORE_PER_ENCOUNTER_WON,
+  META_VICTORY_BONUS,
+  INITIAL_META_STATE,
+  UNLOCK_TRANCHES,
+  scoreRun,
+  runScoreInput,
+  scoreForRun,
+  unlockedAtScore,
+  applyUnlocks,
+  bankRun,
+  isVariantUnlocked,
+  selectableStarts,
+  loadMeta,
+  InMemoryMetaStore,
+} from './meta';
+export type { MetaState, MetaStorePort, RunScoreInput, UnlockTranche } from './meta';

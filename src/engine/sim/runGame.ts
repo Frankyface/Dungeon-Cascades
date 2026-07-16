@@ -12,7 +12,7 @@
  *
  * PURE ENGINE: no React / React Native imports; deterministic; never mutates input.
  */
-import { currentRunNode, startRun } from '../run';
+import { currentRunNode, scoreForRun, startRun } from '../run';
 import type { EncounterKind, RunState } from '../run';
 import { stepRunBot } from './runBot';
 import type { RunBotName, RunDeath, RunGameResult } from './runSimTypes';
@@ -29,19 +29,27 @@ function causeLabel(enc: ActiveEncounter): string {
   return enc.kind === 'boss' ? 'boss' : `${enc.kind}:${enc.enemyId}`;
 }
 
-/** Drive one run to terminal (or the wedge cap), returning its balance telemetry. */
-export function playRun(seed: number, bot: RunBotName, stepCap: number): RunGameResult {
-  let state = startRun(seed);
+/**
+ * Drive one run to terminal (or the wedge cap), returning its balance telemetry. `variantId`
+ * (optional) selects a Stage-4 starting variant; omitted ⇒ a vanilla run. Gold flow is captured
+ * by diffing `state.gold` across each transition (a positive delta is earned — combat rewards,
+ * event gifts; a negative delta is spent — shop buys, event costs).
+ */
+export function playRun(seed: number, bot: RunBotName, stepCap: number, variantId?: string): RunGameResult {
+  let state = startRun(seed, variantId);
   let steps = 0;
   let encounters = 0; // fights + elites entered (boss tracked separately)
   let moves = 0; // combat turns played
   let bossReached = false;
   let floorReached = 0;
+  let goldEarned = 0;
+  let goldSpent = 0;
   let active: ActiveEncounter | null = null;
   let death: RunDeath | null = null;
 
   while (state.status === 'active' && steps < stepCap) {
     const beforeKind = state.phase.kind;
+    const goldBefore = state.gold;
     const node = currentRunNode(state);
     if (node.floor > floorReached) floorReached = node.floor;
 
@@ -50,6 +58,11 @@ export function playRun(seed: number, bot: RunBotName, stepCap: number): RunGame
 
     // A step taken FROM a combat phase is one combat turn (win, loss, or ongoing).
     if (beforeKind === 'combat') moves++;
+
+    // Gold flow: split each transition's net gold delta into earned (+) vs spent (−).
+    const goldDelta = next.gold - goldBefore;
+    if (goldDelta > 0) goldEarned += goldDelta;
+    else if (goldDelta < 0) goldSpent += -goldDelta;
 
     // Entering combat from a non-combat phase = a fresh encounter.
     if (beforeKind !== 'combat' && next.phase.kind === 'combat') {
@@ -80,5 +93,9 @@ export function playRun(seed: number, bot: RunBotName, stepCap: number): RunGame
     floorReached,
     steps,
     death,
+    relicIds: state.relicIds,
+    goldEarned,
+    goldSpent,
+    score: outcome === 'wedged' ? 0 : scoreForRun(state),
   };
 }

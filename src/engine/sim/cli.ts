@@ -20,16 +20,22 @@ import { runCombatHarness } from './combatHarness';
 import { formatCombatReport, summarizeCombat } from './combatStats';
 import { runRunHarness } from './runHarness';
 import { formatRunReport, summarizeRun } from './runStats';
+import { runBalanceReport, formatBalanceReport } from './balanceReport';
 import { DEFAULT_RUN_STEP_CAP } from './runSimTypes';
 import { DEFAULT_BOT_CONFIG } from './types';
 import { DEFAULT_MAX_TURNS } from './combatTypes';
 import { DEFAULT_COMBAT_CONFIG, ENEMY_IDS } from '../combat';
+import { VARIANT_IDS } from '../run';
 import type { EnemyId } from '../combat';
 import type { BotName, HarnessConfig } from './types';
 import type { CombatBotName, CombatHarnessConfig } from './combatTypes';
 import type { RunBotName, RunHarnessConfig } from './runSimTypes';
+import type { BalanceReportConfig } from './balanceReport';
 
-type Mode = 'board' | 'combat' | 'run';
+type Mode = 'board' | 'combat' | 'run' | 'report';
+
+/** Default games for the (heavy) full purity/balance matrix when `--games` is not given. */
+const REPORT_DEFAULT_GAMES = 2000;
 
 interface ParsedArgs {
   readonly mode: Mode;
@@ -38,6 +44,7 @@ interface ParsedArgs {
   readonly bot: string; // raw; validated against the mode in run()
   readonly seed: number;
   readonly moves: number;
+  readonly variant?: string; // run mode: optional starting variant id
   readonly timing: boolean;
   readonly help: boolean;
 }
@@ -62,15 +69,21 @@ Usage:
     npm run sim -- --mode combat --enemy slime|skeleton|bat \\
                    --bot greedy-combat|random --games N --seed S [--timing]
   Run mode (Stage 3 — full seeded runs, map→fights→draft→shop→boss):
-    npm run sim -- --mode run --bot policy|trivial --games N --seed S [--timing]
+    npm run sim -- --mode run --bot policy|trivial --games N --seed S \\
+                   [--variant ID] [--timing]
+  Report mode (Stage 4 — full purity/balance matrix, vanilla + every variant):
+    npm run sim -- --mode report --games N --seed S [--timing]
 
 Options:
-  --mode NAME   board | combat | run                    (default board)
+  --mode NAME   board | combat | run | report           (default board)
   --enemy NAME  combat only: slime | skeleton | bat     (default ${DEFAULTS.enemy})
   --bot NAME    board: random | greedy                  (default random)
                 combat: greedy-combat | random          (default greedy-combat)
                 run: policy | trivial                   (default policy)
-  --games N     Number of seeded games/encounters/runs   (default ${DEFAULTS.games})
+  --variant ID  run mode only: a starting variant       (default: vanilla)
+                one of: ${VARIANT_IDS.join(', ')}
+  --games N     Number of seeded games/encounters/runs   (default ${DEFAULTS.games};
+                report mode default ${REPORT_DEFAULT_GAMES})
   --seed S      Base seed; game i uses derive(seed, i)   (default ${DEFAULTS.seed})
   --moves M     Board mode only: moves played per game   (default ${DEFAULTS.moves})
   --timing      Print an extra timing line to stderr
@@ -101,9 +114,11 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   let mode: Mode = 'board';
   let enemy: EnemyId = DEFAULTS.enemy;
   let games = DEFAULTS.games;
+  let gamesExplicit = false;
   let botRaw: string | undefined;
   let seed = DEFAULTS.seed;
   let moves = DEFAULTS.moves;
+  let variant: string | undefined;
   let timing = false;
   let help = false;
 
@@ -112,8 +127,8 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     switch (arg) {
       case '--mode': {
         const value = argv[++i];
-        if (value !== 'board' && value !== 'combat' && value !== 'run') {
-          throw new Error(`--mode must be 'board', 'combat', or 'run', got '${value ?? ''}'`);
+        if (value !== 'board' && value !== 'combat' && value !== 'run' && value !== 'report') {
+          throw new Error(`--mode must be 'board', 'combat', 'run', or 'report', got '${value ?? ''}'`);
         }
         mode = value;
         break;
@@ -128,6 +143,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
       }
       case '--games':
         games = parseIntStrict('--games', argv[++i]);
+        gamesExplicit = true;
         break;
       case '--seed':
         seed = parseIntStrict('--seed', argv[++i]);
@@ -138,6 +154,14 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
       case '--bot':
         botRaw = argv[++i];
         break;
+      case '--variant': {
+        const value = argv[++i];
+        if (value === undefined || !VARIANT_IDS.includes(value)) {
+          throw new Error(`--variant must be one of ${VARIANT_IDS.join(' | ')}, got '${value ?? ''}'`);
+        }
+        variant = value;
+        break;
+      }
       case '--timing':
         timing = true;
         break;
@@ -150,11 +174,24 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     }
   }
 
+  // Report mode's default game count is the heavy full-matrix value unless overridden.
+  if (mode === 'report' && !gamesExplicit) {
+    games = REPORT_DEFAULT_GAMES;
+  }
+
   if (games < 1) {
     throw new Error(`--games must be >= 1, got ${games}`);
   }
   if (moves < 1) {
     throw new Error(`--moves must be >= 1, got ${moves}`);
+  }
+  if (variant !== undefined && mode !== 'run') {
+    throw new Error(`--variant is only valid in run mode (got mode '${mode}')`);
+  }
+
+  // Report mode always uses the policy bot (the purity measuring stick); no --bot needed.
+  if (mode === 'report') {
+    return { mode, enemy, games, bot: 'policy', seed, moves, variant, timing, help };
   }
 
   // Resolve the mode-specific bot default, then validate against the mode.
@@ -165,7 +202,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     throw new Error(`--bot for ${mode} mode must be one of ${allowed.join(' | ')}, got '${bot}'`);
   }
 
-  return { mode, enemy, games, bot, seed, moves, timing, help };
+  return { mode, enemy, games, bot, seed, moves, variant, timing, help };
 }
 
 /** Board mode — the unchanged Stage-1 path (byte-identical output). */
@@ -223,6 +260,7 @@ function runRun(parsed: ParsedArgs): void {
     games: parsed.games,
     baseSeed: parsed.seed,
     stepCap: DEFAULT_RUN_STEP_CAP,
+    ...(parsed.variant !== undefined ? { variantId: parsed.variant } : {}),
   };
 
   const t0 = performance.now();
@@ -241,6 +279,31 @@ function runRun(parsed: ParsedArgs): void {
     timingLine += `[timing] total combat moves: ${totalMoves} · total driver steps: ${totalSteps}\n`;
   }
   process.stderr.write(timingLine);
+}
+
+/** Report mode — drive the full purity/balance matrix; deterministic report to stdout. */
+function runReport(parsed: ParsedArgs): void {
+  const config: BalanceReportConfig = {
+    bot: parsed.bot as RunBotName,
+    games: parsed.games,
+    baseSeed: parsed.seed,
+    stepCap: DEFAULT_RUN_STEP_CAP,
+  };
+
+  const t0 = performance.now();
+  const report = runBalanceReport(config);
+  const t1 = performance.now();
+
+  // Deterministic report -> stdout.
+  process.stdout.write(formatBalanceReport(report));
+  // Nondeterministic timing -> stderr only.
+  const totalMs = t1 - t0;
+  const configs = report.rows.length;
+  const totalRuns = configs * config.games;
+  process.stderr.write(
+    `[timing] ${configs} configs × ${config.games} runs = ${totalRuns} runs in ${totalMs.toFixed(1)} ms ` +
+      `(avg ${(config.games === 0 ? 0 : totalMs / totalRuns).toFixed(3)} ms/run)\n`,
+  );
 }
 
 function run(argv: readonly string[]): number {
@@ -262,6 +325,8 @@ function run(argv: readonly string[]): number {
     runCombat(parsed);
   } else if (parsed.mode === 'run') {
     runRun(parsed);
+  } else if (parsed.mode === 'report') {
+    runReport(parsed);
   } else {
     runBoard(parsed);
   }

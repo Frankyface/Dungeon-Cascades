@@ -237,6 +237,9 @@ export function formatRunReport(summary: RunSummary): string {
     'Dungeon Cascades — Full-Run Sim Report',
     '======================================',
     `Bot:              ${c.bot}`,
+    // The variant line is emitted ONLY for a variant run, so a vanilla report is byte-identical
+    // to the pre-Stage-4 output (the Stage-3 baseline reproduces exactly).
+    ...(c.variantId !== undefined ? [`Variant:          ${c.variantId}`] : []),
     `Base seed:        ${c.baseSeed}`,
     `Games:            ${c.games}`,
     `Step cap:         ${c.stepCap}`,

@@ -51,6 +51,17 @@ export interface RunGameResult {
   readonly steps: number;
   /** Death attribution (null on victory / wedge). */
   readonly death: RunDeath | null;
+  /**
+   * OPTIONAL Stage-4 balance-report telemetry (populated by `playRun`; absent in synthetic
+   * fixtures). `relicIds` = relics owned at the terminal state (for the relic draft→win
+   * correlation); `goldEarned` / `goldSpent` = cumulative positive / negative gold flow across
+   * the run (gold flow report). Optional so pre-existing hand-built `RunGameResult`s still typecheck.
+   */
+  readonly relicIds?: readonly string[];
+  readonly goldEarned?: number;
+  readonly goldSpent?: number;
+  /** Meta score this run banks (floors + encounters won + victory bonus); 0 for a wedge. */
+  readonly score?: number;
 }
 
 /**
@@ -68,4 +79,10 @@ export interface RunHarnessConfig {
   readonly baseSeed: number;
   /** Safety cap on driver transitions per run; hitting it records a `wedged` outcome. */
   readonly stepCap: number;
+  /**
+   * OPTIONAL Stage-4 starting variant (by id). When set, every run in the harness starts from
+   * this variant (`startRun(seed, variantId)`); when omitted, runs are vanilla — byte-identical
+   * to the pre-variant harness, so the Stage-3 baseline reproduces exactly.
+   */
+  readonly variantId?: string;
 }

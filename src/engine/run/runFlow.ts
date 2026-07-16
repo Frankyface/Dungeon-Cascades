@@ -29,6 +29,8 @@ import { eventForSeed } from './events';
 import { createRestState } from './rest';
 import { STARTING_GOLD } from './economyConfig';
 import { BOSS_NOMINAL_ENEMY_ID, RUN_PLAYER_MAX_HP } from './runConfig';
+import { getVariant, resolveVariantStart } from './variants';
+import type { RunVariant } from './variants';
 import { assertRunActive, assertRunPhase } from './runTypes';
 import type { EncounterKind, RunState, RunStatus } from './runTypes';
 import type { Path } from '../board';
@@ -44,10 +46,18 @@ function finalize(state: RunState, status: RunStatus): RunState {
   return { ...state, status, phase: { kind: 'ended' } };
 }
 
-/** Begin a run: generate the map from the seed, park at the start node, full HP, no relics. */
-export function startRun(seed: number): RunState {
+/**
+ * Begin a run: generate the map from the seed, park at the start node, full HP, no relics.
+ *
+ * `variantId` is OPTIONAL (Stage 4). When omitted the returned state is BYTE-IDENTICAL to a
+ * pre-variant vanilla start (no `variantId` field, unchanged HP/gold/relics). When supplied it
+ * reshapes ONLY the initial state via the variant's run-start modifiers (starting relics, gold,
+ * max HP) and tags the run with the variant id — the rest of the run flows through the exact same
+ * state machine. Throws on an unknown variant id (boundary validation).
+ */
+export function startRun(seed: number, variantId?: string): RunState {
   const map = generateMap(mapSeedFor(seed));
-  return {
+  const base: RunState = {
     version: 1,
     seed,
     map,
@@ -59,6 +69,27 @@ export function startRun(seed: number): RunState {
     nodesCompleted: 0,
     phase: { kind: 'awaiting_node' },
     status: 'active',
+  };
+  if (variantId === undefined) return base;
+  return applyVariantStart(base, getVariant(variantId));
+}
+
+/**
+ * Fold a variant's run-start modifiers into a fresh vanilla start. Pure: the run starts at full
+ * (modified) max HP, gold is floored at 0, max HP at `MIN_VARIANT_MAX_HP`, and start relics are
+ * added in order (skipping any the run already owns, which vanilla never does). The `revealMap`
+ * flag is intentionally NOT stored on RunState — it is a property of the variant the UI reads by
+ * id, and it has no engine/sim effect.
+ */
+function applyVariantStart(base: RunState, variant: RunVariant): RunState {
+  const resolved = resolveVariantStart(base.playerMaxHp, base.gold, base.relicIds, variant.modifiers);
+  return {
+    ...base,
+    playerMaxHp: resolved.maxHp,
+    playerHp: resolved.maxHp, // a run always starts at full HP (of the variant's pool)
+    gold: resolved.gold,
+    relicIds: resolved.relicIds,
+    variantId: variant.id,
   };
 }
 

@@ -61,6 +61,13 @@ export interface RunState {
   readonly nodesCompleted: number;
   readonly phase: RunPhase;
   readonly status: RunStatus;
+  /**
+   * OPTIONAL starting-variant id (Stage 4). Present ONLY on a run started from a variant; a
+   * vanilla run OMITS this field entirely, so `startRun(seed)` is byte-identical to before
+   * variants existed. Purely a UI/telemetry tag (the variant's effects are already baked into
+   * the initial state at start) — the flow state machine never reads it.
+   */
+  readonly variantId?: string;
 }
 
 /** Whether the run has finished (victory or defeat). Terminal states reject all actions. */
