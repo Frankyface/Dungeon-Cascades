@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+.metro-health-check*
+
+# Native prebuild output (managed workflow — generated, not committed)
+ios/
+android/
+
+# Testing
+coverage/
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Environment / secrets
+.env*
+
+# OS files
+.DS_Store
+
+# Merge / patch leftovers
+*.orig
+
+# Editor cruft
+.idea/
+.vscode/
