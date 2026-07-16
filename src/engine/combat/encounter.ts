@@ -23,6 +23,7 @@ import { computeEffects } from './effects';
 import { getEnemy, nextIntentIndex, scriptStep } from './enemies';
 import { DEFAULT_COMBAT_CONFIG } from './config';
 import type { CombatConfig } from './config';
+import type { CombatModifiers } from './modifiers';
 import type { CombatState, Enemy, EnemyAction, EnemyId, TurnResolution } from './types';
 
 /** 2^32 — recover a full uint32 seed from a [0,1) float draw. */
@@ -113,12 +114,18 @@ function applyEnemyAction(
 /**
  * Resolve one player move. Pure: never mutates `state`. Throws if the encounter is
  * already terminal, or if the path is invalid (propagated from `resolveMove`).
+ *
+ * `modifiers` is the OPTIONAL Stage-3 relic seam (see modifiers.ts). When omitted, this
+ * is byte-identical to the Stage-2 engine (every existing call passes no modifiers). When
+ * supplied it (a) threads relic damage/heal transforms into `computeEffects`, and (b)
+ * reduces an incoming enemy ATTACK via `incomingAttack` before it is applied.
  */
 export function playTurn(
   state: CombatState,
   path: Path,
   source: TileSource = uniformTileSource,
   config: CombatConfig = DEFAULT_COMBAT_CONFIG,
+  modifiers?: CombatModifiers,
 ): TurnResolution {
   if (state.status !== 'ongoing') {
     throw new Error(`playTurn: encounter is already ${state.status}; no further moves`);
@@ -129,9 +136,9 @@ export function playTurn(
   // 1. Board resolves fully (all cascades). Path validation lives here.
   const move = resolveMove(state.board, path, state.rngState, source);
 
-  // 2. Combat effects as one batch from the full resolution.
+  // 2. Combat effects as one batch from the full resolution (relic seam threaded).
   const groups = flattenGroups(move.waves);
-  const effects = computeEffects(groups, enemy.affinity, config);
+  const effects = computeEffects(groups, enemy.affinity, config, modifiers);
 
   // Apply the player's move: damage the enemy (floored), heal the player (capped).
   const enemyHpAfterMove = Math.max(0, state.enemyHp - effects.damage);
@@ -165,8 +172,13 @@ export function playTurn(
     };
   }
 
-  // 4. Enemy fires its telegraphed intent (exactly what was shown).
-  const enemyAction = state.telegraph;
+  // 4. Enemy fires its telegraphed intent (exactly what was shown). The relic seam may
+  // soften an incoming ATTACK before it lands (defensive relics); with no modifier the
+  // action is the untouched telegraph, so the transcript is byte-identical to Stage 2.
+  const enemyAction =
+    modifiers?.incomingAttack && state.telegraph.type === 'attack'
+      ? { type: 'attack' as const, value: Math.max(0, Math.round(modifiers.incomingAttack(state.telegraph.value))) }
+      : state.telegraph;
   const applied = applyEnemyAction(enemyAction, playerHpAfterMove, enemyHpAfterMove, state.enemyMaxHp);
 
   // 5. LOSE check.

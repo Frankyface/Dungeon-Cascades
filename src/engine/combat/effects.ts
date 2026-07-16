@@ -17,6 +17,7 @@
  */
 import { MATCH_MIN } from '../board';
 import type { CombatConfig } from './config';
+import type { CombatModifiers } from './modifiers';
 import type {
   AffinityTable,
   ClearedGroup,
@@ -64,11 +65,18 @@ const EFFECT_AMOUNT: Record<EffectKind, (size: number, affinity: number, config:
  * across every cascade wave). `totalCombos` — which drives the cascade multiplier —
  * is `groups.length`, i.e. it counts ALL groups, heal groups included, exactly as
  * the board engine's `MoveResolution.totalCombos` does. Pure; never mutates input.
+ *
+ * `modifiers` is the OPTIONAL Stage-3 relic seam (see modifiers.ts): when omitted (or
+ * with its transforms omitted), this function is byte-identical to the Stage-2 engine.
+ * When supplied, each group's post-affinity, PRE-cascade amount is passed through the
+ * relevant transform before summing — the cascade multiplier and the single-rounding
+ * site are unchanged, so relic bonuses cascade-scale and round exactly like base damage.
  */
 export function computeEffects(
   groups: readonly ClearedGroup[],
   affinity: AffinityTable,
   config: CombatConfig,
+  modifiers?: CombatModifiers,
 ): CombatEffects {
   const totalCombos = groups.length;
   const cascadeMultiplier = totalCombos > 0 ? 1 + config.cascadeBonus * (totalCombos - 1) : 1;
@@ -83,13 +91,18 @@ export function computeEffects(
     const affinityUsed = kind === 'damage' ? affinityMultiplier(affinity, g.color) : 1;
     const baseAmount = EFFECT_AMOUNT[kind](size, affinityUsed, config);
 
+    // Relic seam: transform the group amount when a modifier is supplied; otherwise the
+    // amount is the untouched Stage-2 value (identity ⇒ byte-identical behavior).
+    let amount = baseAmount;
     if (kind === 'heal') {
-      rawHeal += baseAmount;
+      if (modifiers?.healGroup) amount = modifiers.healGroup(baseAmount, size, totalCombos);
+      rawHeal += amount;
     } else {
-      rawDamage += baseAmount;
+      if (modifiers?.damageGroup) amount = modifiers.damageGroup(baseAmount, g.color, size, totalCombos);
+      rawDamage += amount;
     }
 
-    breakdown.push({ color: g.color, size, kind, affinity: affinityUsed, baseAmount });
+    breakdown.push({ color: g.color, size, kind, affinity: affinityUsed, baseAmount: amount });
   }
 
   return {

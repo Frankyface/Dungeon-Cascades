@@ -42,6 +42,9 @@ export type { CombatConfig, EnemyStats } from './config';
 // Data-driven tile-effect table + pure combat math.
 export { TILE_EFFECTS, affinityMultiplier, computeEffects } from './effects';
 
+// Optional relic-hook seam (Stage 3 integration; identity when unused).
+export type { CombatModifiers } from './modifiers';
+
 // Enemy registry + intent/affinity helpers.
 export {
   ENEMY_IDS,
