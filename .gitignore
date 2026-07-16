@@ -32,3 +32,26 @@ yarn-error.*
 # Editor cruft
 .idea/
 .vscode/
+
+# --- Merged from Expo default template ---
+# Expo generated env types (regenerated on `expo start`)
+expo-env.d.ts
+
+# Native build artifacts / signing secrets
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Local env files (narrower than .env* above; kept for parity with template)
+.env*.local
+
+# TypeScript build info
+*.tsbuildinfo
+
+# reset-project output dir
+example
