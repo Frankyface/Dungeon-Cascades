@@ -24,13 +24,14 @@ one playable fight — the thing Cam beats on-device to clear Stage 2.
       `playTurn(state, path)` → terminal state, entirely in pure TS — proven by the combat sim (below)
       playing complete fights with no UI.
 - [ ] **Sim-verified balance bands** (the automated stand-in for "combat is satisfying," pending Cam's
-      on-device verdict): over 500 seeded encounters per enemy per bot —
+      on-device verdict; AMENDED 2026-07-15 by the "Combat recalibration" decision after first sim
+      contact — see decisions.md): over 500 seeded encounters per enemy per bot —
       • greedy-combat bot (targets weaknesses) **wins ≥80%** vs each of the three enemies;
       • random bot **wins ≤40%** vs at least two of the three (skill must matter);
-      • greedy median turns-to-win per fight is **4–12** (fits 8–12 encounters in a 15–20 min run);
+      • greedy median turns-to-win: **slime 3–8** (intro enemy), **skeleton 5–12**, **bat 4–12**;
       • reports byte-deterministic (same flags twice ⇒ identical stdout).
-      Constants in the config module may be tuned within documented bounds to hit these bands; final
-      values + the report go in the Verification Log and the constants' file.
+      Constants tune within the recalibration decision's bounds; final values + the report go in the
+      Verification Log and the constants' file.
 - [ ] Cam can **beat a scripted encounter on-device** by playing drag-path moves. (Human gate — stays
       unticked until Cam plays.)
 
