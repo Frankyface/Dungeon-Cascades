@@ -10,6 +10,7 @@ import { View, StyleSheet, Text } from 'react-native';
 import { getEnemy } from '../../engine/combat';
 import type { AffinityTable, EnemyAction, EnemyId } from '../../engine/combat';
 import { COMBAT_COLORS } from './combatColors';
+import { AffinityChipsView } from './AffinityChipsView';
 import { HpBar } from './HpBar';
 import {
   ENEMY_GLYPH,
@@ -18,7 +19,6 @@ import {
   formatIntent,
   hpFraction,
   formatHp,
-  type AffinityChip,
 } from './combatFormat';
 
 interface EnemyPanelProps {
@@ -40,27 +40,6 @@ const INTENT_TINT: Readonly<Record<EnemyAction['type'], string>> = {
   charge: COMBAT_COLORS.chargeTint,
   heal: COMBAT_COLORS.healTint,
 };
-
-function ChipRow({ heading, chips, bg, color }: {
-  readonly heading: string;
-  readonly chips: readonly AffinityChip[];
-  readonly bg: string;
-  readonly color: string;
-}) {
-  if (chips.length === 0) {
-    return null;
-  }
-  return (
-    <View style={styles.chipRow}>
-      <Text style={styles.chipHeading}>{heading}</Text>
-      {chips.map((chip) => (
-        <View key={`${heading}-${chip.color}`} style={[styles.chip, { backgroundColor: bg }]}>
-          <Text style={[styles.chipText, { color }]}>{chip.label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
 
 export function EnemyPanel({
   enemyId,
@@ -96,11 +75,7 @@ export function EnemyPanel({
         fillColor={COMBAT_COLORS.enemyFill}
       />
 
-      <View style={styles.chips}>
-        <ChipRow heading="Weak" chips={affinity.weak} bg={COMBAT_COLORS.weakBg} color={COMBAT_COLORS.weakText} />
-        <ChipRow heading="Resists" chips={affinity.resist} bg={COMBAT_COLORS.resistBg} color={COMBAT_COLORS.resistText} />
-        <ChipRow heading="Immune" chips={affinity.immune} bg={COMBAT_COLORS.resistBg} color={COMBAT_COLORS.resistText} />
-      </View>
+      <AffinityChipsView chips={affinity} />
     </View>
   );
 }
@@ -145,29 +120,5 @@ const styles = StyleSheet.create({
   intentValue: {
     fontSize: 16,
     fontWeight: '800',
-  },
-  chips: {
-    gap: 6,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  chipHeading: {
-    color: COMBAT_COLORS.subtle,
-    fontSize: 12,
-    fontWeight: '700',
-    width: 58,
-  },
-  chip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '700',
   },
 });

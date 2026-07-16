@@ -1,8 +1,8 @@
 /**
  * The run-end screen (victory or defeat): the run summary (encounters cleared, floors reached,
- * relics, gold) plus the owned relics, and the two exits — "New run" (a clean reset) and the
- * main menu. All numbers come from the pure `computeRunSummary` view-model; the save was already
- * cleared when the run went terminal.
+ * relics, gold) plus the owned relics, and the two exits — "New run" (to the start-selection
+ * picker, so a just-unlocked variant is one tap away) and the main menu. All numbers come from the
+ * pure `computeRunSummary` view-model; the save was already cleared when the run went terminal.
  */
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
@@ -85,7 +85,7 @@ export function RunOutcomeScreen({ outcome }: RunOutcomeScreenProps) {
       ) : null}
 
       <View style={styles.buttons}>
-        <Pressable onPress={run.startNewRun} style={({ pressed }) => [styles.button, styles.primary, pressed && styles.pressed]}>
+        <Pressable onPress={run.goToStartSelect} style={({ pressed }) => [styles.button, styles.primary, pressed && styles.pressed]}>
           <Text style={styles.buttonText}>New run</Text>
         </Pressable>
         <Pressable onPress={run.goToMenu} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>

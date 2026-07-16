@@ -123,6 +123,16 @@ export function MenuScreen() {
         </Pressable>
       )}
 
+      <Text style={styles.sectionLabel}>Reference</Text>
+
+      <Pressable
+        onPress={() => router.push('/compendium')}
+        style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      >
+        <Text style={styles.cardTitle}>📖 Compendium</Text>
+        <Text style={styles.cardHint}>Relics, enemies & the boss — every number, straight from the engine</Text>
+      </Pressable>
+
       <Text style={styles.sectionLabel}>Sandbox</Text>
 
       <Pressable

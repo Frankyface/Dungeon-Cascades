@@ -10,11 +10,11 @@ import { createContext, useContext, useMemo, useRef, useState, type ReactNode } 
 import { useRouter } from 'expo-router';
 import type { Path } from '../../engine/board';
 import type { TurnResolution } from '../../engine/combat';
-import { abandonRun, buyFromShop, playEncounterTurn, startRun } from '../../engine/run';
+import { abandonRun, buyFromShop, playEncounterTurn } from '../../engine/run';
 import type { BuyResult, RunState } from '../../engine/run';
 import { applyRunAction, persistRun, safeApplyRunAction } from './runSession';
 import { routeForRunState } from './runRoute';
-import { makeRunSeed, runStore, takeStagedRun } from './runController';
+import { runStore, takeStagedRun } from './runController';
 
 /** The actions the run screens call. Combat turns go through `resolveEncounterTurn`. */
 export interface RunContextValue {
@@ -44,8 +44,12 @@ export interface RunContextValue {
   finishEncounter(): void;
   /** Give up the run (immediate defeat). */
   abandon(): void;
-  /** Start a brand-new run in place (from a victory/defeat screen). */
-  startNewRun(): void;
+  /**
+   * Leave for the start-selection picker to begin a fresh run (from a victory/defeat screen).
+   * Routes to `/start` rather than quick-restarting a vanilla run in place: right after a run —
+   * especially one that just unlocked a variant — the picker is what the player wants.
+   */
+  goToStartSelect(): void;
   /** Leave the run for the main menu (the run stays saved and resumable). */
   goToMenu(): void;
 }
@@ -141,11 +145,7 @@ export function RunProvider({ children }: { readonly children: ReactNode }) {
         if (cur === null) return;
         commitAndRoute(abandonRun(cur));
       },
-      startNewRun: () => {
-        const fresh = startRun(makeRunSeed());
-        commit(fresh);
-        router.replace('/run');
-      },
+      goToStartSelect: () => router.replace('/start'),
       goToMenu: () => router.replace('/'),
     };
   }, [state, store, router]);
