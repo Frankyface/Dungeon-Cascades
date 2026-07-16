@@ -1,5 +1,5 @@
 # Feature: Enemy Encounters (definitions, telegraphed intents, turn order)
-_Stage: 2 — Combat · Status: not started_
+_Stage: 2 — Combat · Status: verified done_
 
 ## Goal
 Define enemies and how a turn plays out. Enemies are fantasy-dungeon-lite (slimes, skeletons) that
@@ -9,7 +9,7 @@ acts on its telegraphed intent, lose check, then the next intent is telegraphed.
 single encounters, not the run layer.
 
 ## Success Criteria
-- [ ] **Three enemies defined as pure engine data** with distinct affinity spreads and intent scripts:
+- [x] **Three enemies defined as pure engine data** with distinct affinity spreads and intent scripts:
       1. **Slime** — low HP (~30), weak to R, no resists; script: attack 6 every turn.
       2. **Skeleton** — mid HP (~55), resists R (0.5×), weak to B (2×); script: attack 8 → charge
          (telegraphs "charging") → attack 14, repeating.
@@ -17,14 +17,14 @@ single encounters, not the run layer.
          alternating.
       (Exact numbers are config data the combat sim may tune within ±50%; the SHAPES are the criteria:
       one vanilla enemy, one charge-telegraph enemy, one self-healing enemy, distinct affinities.)
-- [ ] **Intents are trustworthy**: the telegraphed action (type + value) is exactly what fires — asserted
+- [x] **Intents are trustworthy**: the telegraphed action (type + value) is exactly what fires — asserted
       by simulating full scripted fights and checking every enemy action against its prior telegraph.
-- [ ] **Turn order resolves correctly**: player move → full board+combat resolution → win check (a dead
+- [x] **Turn order resolves correctly**: player move → full board+combat resolution → win check (a dead
       enemy never acts) → enemy intent fires → lose check → next telegraph. Asserted by a
       transcript-style unit test covering a full fight including the win-before-enemy-acts edge.
-- [ ] **Encounter state is serializable plain data** (JSON-safe CombatState) so the UI renders it and sim
+- [x] **Encounter state is serializable plain data** (JSON-safe CombatState) so the UI renders it and sim
       bots consume it headlessly, mirroring the board engine's conventions.
-- [ ] **Deterministic**: same seed + same move paths ⇒ identical fight transcript (enemy behavior contains
+- [x] **Deterministic**: same seed + same move paths ⇒ identical fight transcript (enemy behavior contains
       no unseeded randomness; scripts are deterministic by construction).
 
 ## How We'll Verify
@@ -36,7 +36,17 @@ single encounters, not the run layer.
 3. On-device (later, Cam): the intent shown before a move matches what the enemy does after it resolves.
 
 ## Verification Log
-(empty until verification actually happens — a feature with an empty log can never be `verified done`)
+### 2026-07-15 — Manager session executed the How We'll Verify procedure (unit portion) — PASS
+- Three enemies live as pure data in `src/engine/combat/enemies.ts` per spec: Slime (30 HP, weak R,
+  attack-6 loop), Skeleton (55 HP, resist R / weak B, attack 8 → charge → attack 14 cycle), Bat (40 HP,
+  weak G / resist B, attack 4 / self-heal 5 alternating).
+- `npm test` (20 suites / 139 green) covers: every fired action equals its prior telegraph (trustworthy by
+  construction — the fired action IS `state.telegraph`), full turn-order transcript incl. win-before-
+  enemy-acts and lose edges, intent-cycle wrapping, transcript determinism across repeats. CombatState is
+  plain JSON-safe data. `npx tsc --noEmit` exit 0; purity greps clean.
+- On-device intent check remains part of Cam's Stage 2 play (tracked on the overview's human gate); the
+  engine-side criteria this feature owns are fully evidenced, so per the state machine it is verified done.
+- Built by an Opus subagent; independently re-verified by the manager session.
 
 ## Open Questions
 - Intent vocabulary beyond attack/charge/self-heal (block? debuff?) — NOT in Stage 2; the intent type

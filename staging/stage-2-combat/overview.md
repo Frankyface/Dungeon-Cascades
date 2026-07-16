@@ -12,20 +12,24 @@ intent, and turn-based combat resolves your drag-move into damage/block against 
 / run — just one board versus one enemy, enough to prove combat is satisfying.
 
 ## Features
-- [ ] `feature-tile-taxonomy.md` — the open design decision: what each tile color maps to (attack, block,
-      mana/skill, heal, gold). Owns settling this in `docs/decisions.md`.
-- [ ] `feature-enemy-encounters.md` — enemy definitions, telegraphed intents, and turn order.
-- [ ] `feature-combat-resolution.md` — combo count → damage/block scaling, HP, win/lose, encounter flow.
+- [x] `feature-tile-taxonomy.md` — DECIDED (offense-first affinity model) and implemented data-driven.
+      (verified done 2026-07-15)
+- [x] `feature-enemy-encounters.md` — 3 enemies, trustworthy telegraphs, turn order. (verified done
+      2026-07-15)
+- [~] `feature-combat-resolution.md` — combat math verified; sim balance bands + Cam's on-device win
+      remain. (in progress 2026-07-15)
 
 ## Definition of done (testable checklist)
-- [ ] The **tile taxonomy is decided and recorded** in `docs/decisions.md`, and the engine implements the
-      chosen tile types.
-- [ ] **Combat math is unit-tested** (combo count → damage/block scaling, HP, win/lose conditions) with
-      Jest, TDD, keeping `src/engine/` at ≥80% coverage.
-- [ ] At least one **enemy with a telegraphed intent** exists, and combat runs turn-based: the player's
-      drag-move resolves, then the enemy acts on its telegraphed intent.
-- [ ] Cam can **beat a scripted encounter on-device** in Expo Go — a full win condition reached by
-      playing drag-path moves.
+- [x] The **tile taxonomy is decided and recorded** in `docs/decisions.md`, and the engine implements the
+      chosen tile types. (evidence: feature-tile-taxonomy.md Verification Log, 2026-07-15)
+- [x] **Combat math is unit-tested** (combo → damage/heal scaling, HP, win/lose conditions) with Jest,
+      TDD, `src/engine/` ≥80% coverage (combat module itself 100%). (evidence: feature-combat-resolution.md
+      Verification Log, 2026-07-15)
+- [x] At least one **enemy with a telegraphed intent** exists (three do), and combat runs turn-based.
+      (evidence: feature-enemy-encounters.md Verification Log, 2026-07-15)
+- [ ] **Sim balance bands pass** (greedy-combat ≥80% win, random ≤40% on 2+, turns-to-win median 4–12,
+      byte-deterministic reports — see feature-combat-resolution.md).
+- [ ] Cam can **beat a scripted encounter on-device** — a full win by playing drag-path moves. (Human gate.)
 
 ## Notes
 - Combat lives in `src/engine/combat/` (tile→action mapping, enemy intents, damage/block math) per the

@@ -1,5 +1,5 @@
 # Feature: Combat Resolution (combo → damage/heal, HP, win/lose)
-_Stage: 2 — Combat · Status: not started_
+_Stage: 2 — Combat · Status: in progress_
 
 ## Goal
 Turn a resolved drag-move into combat outcomes using the decided taxonomy (offense-first affinity: R/G/B/Y
@@ -45,7 +45,16 @@ one playable fight — the thing Cam beats on-device to clear Stage 2.
 4. On-device (Cam): beat the Slime, then ideally the Skeleton; confirm bigger cascades visibly hit harder.
 
 ## Verification Log
-(empty until verification actually happens — a feature with an empty log can never be `verified done`)
+### 2026-07-15 — Engine-math portion verified (manager re-ran all gates) — sim bands + Cam's gate remain
+- Combat math implemented per decisions.md defaults with ONE documented rounding site (round-half-up on
+  aggregate damage and aggregate heal AFTER the cascade multiplier — pinned by a discriminating fixture:
+  two 4-tile groups → round(25×1.25)=31, not per-group 33). All required hand-computed fixtures pass
+  (group sizes, multi-wave, mixed damage+heal, every affinity tier, overheal cap, floor-at-0, overkill,
+  terminal-state rejection). 20 suites / 139 tests green; combat coverage 100%; tsc clean.
+- `startEncounter`/`playTurn` run fights end-to-end headlessly (transcript fixtures). Encounter seed
+  splits into independent board/refill streams per the board engine's contract.
+- REMAINING before verified done: the sim balance bands (win rates, turns-to-win, determinism diff — the
+  combat-sim feature runs these) and Cam beating a scripted encounter on-device.
 
 ## Open Questions
 - Does 60 player HP + these enemy numbers create real jeopardy for a mid-skill human (bots bracket the
