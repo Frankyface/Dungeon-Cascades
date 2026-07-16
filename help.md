@@ -29,7 +29,20 @@ needed, a link if one is known, and which stage it blocks.
   Link: https://developer.apple.com/account
   Blocks: **the TestFlight fun-gate build** (see next item).
 
-- [ ] **Build & push to TestFlight — run the authenticated commands (Claude cannot; they need your logins).**
+- [ ] **TestFlight: ONE command left — the first interactive submit.**
+  Status 2026-07-16: ✅ EAS project linked, ✅ signing credentials on file, ✅ **production .ipa built**
+  (build eb16630d, "finished"). The only remaining step needs your Apple sign-in, interactively:
+  1. In the project folder run: `npx eas-cli submit -p ios --latest`
+  2. It will ask you to pick/create the App Store Connect app (bundle `com.frankyface.dungeoncascades`)
+     and sign in to Apple; approve, and it uploads the finished build to TestFlight.
+  3. First time only — it can store an App Store Connect API key so future submits are automatic.
+  4. Then App Store Connect → TestFlight → add yourself as internal tester → build appears in the
+     TestFlight app in minutes.
+  Blocks: **testing via TestFlight** (Expo Go via `npm run dev` works right now regardless).
+
+- [x] ~~Build & push to TestFlight — run the authenticated commands~~ (superseded by the item above —
+  build already produced 2026-07-16; original steps kept below for reference).
+  **Original item:**
   The repo is fully configured for this: bundle id `com.frankyface.dungeoncascades`,
   `eas.json` with a `production` profile (auto-incrementing build numbers), app name
   "Dungeon Cascades". Claude cannot run these because each needs YOUR credentials
