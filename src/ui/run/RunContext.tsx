@@ -10,11 +10,12 @@ import { createContext, useContext, useMemo, useRef, useState, type ReactNode } 
 import { useRouter } from 'expo-router';
 import type { Path } from '../../engine/board';
 import type { TurnResolution } from '../../engine/combat';
-import { abandonRun, buyFromShop, playEncounterTurn } from '../../engine/run';
-import type { BuyResult, RunState } from '../../engine/run';
+import { abandonRun, advanceAct, buyFromShop, playEncounterTurn, sacrificeAtAltar } from '../../engine/run';
+import type { AltarSacrificeResult, BuyResult, RunState } from '../../engine/run';
 import { applyRunAction, persistRun, safeApplyRunAction } from './runSession';
 import { routeForRunState } from './runRoute';
 import { runStore, takeStagedRun } from './runController';
+import { adoptMeta, bankContentUnlocksNow, metaState } from './metaController';
 
 /** The actions the run screens call. Combat turns go through `resolveEncounterTurn`. */
 export interface RunContextValue {
@@ -38,6 +39,20 @@ export interface RunContextValue {
   restHere(): void;
   /** Rest: leave. */
   leaveRestNode(): void;
+  /** Altar: leave WITHOUT sacrificing (a no-op node → move-choice). */
+  leaveAltarNode(): void;
+  /**
+   * Altar: SACRIFICE the run (spec §2c). Ends the run NOW for a permanent relic unlock, adopts the
+   * new meta profile, and persists — but does NOT re-route, so the caller can play the reveal
+   * ceremony in place before routing to the outcome. Returns the sacrifice result (relic + events),
+   * or `null` if the run is not currently at an altar.
+   */
+  sacrificeAtAltarNode(): AltarSacrificeResult | null;
+  /**
+   * Act transition: advance into Act 2 (heal + Act-2 map), persist the content unlocks reaching the
+   * biome earned, then route to the Act-2 map. Called by the transition screen's Continue.
+   */
+  advanceToAct2(): void;
   /** Combat: resolve one turn (relic-aware), update the run, return the animatable resolution. */
   resolveEncounterTurn(path: Path): TurnResolution;
   /** Combat: after the win/lose animation, route to the next screen by the run's new phase. */
@@ -125,6 +140,23 @@ export function RunProvider({ children }: { readonly children: ReactNode }) {
         if (!rejected) commit(next);
       },
       leaveRestNode: () => dispatch({ type: 'restLeave' }),
+      leaveAltarNode: () => dispatch({ type: 'altarLeave' }),
+      sacrificeAtAltarNode: () => {
+        const cur = stateRef.current;
+        if (cur === null || cur.phase.kind !== 'altar') return null;
+        // The engine computes the sacrifice: terminal `sacrificed` run + the new meta + unlock events.
+        const result = sacrificeAtAltar(cur, metaState());
+        adoptMeta(result.meta); // persist the permanent relic unlock (survives the run's death)
+        commit(result.state); // terminal run → the save is cleared; NO re-route (stay for the reveal)
+        return result;
+      },
+      advanceToAct2: () => {
+        const cur = stateRef.current;
+        if (cur === null || cur.phase.kind !== 'act_transition') return;
+        const next = advanceAct(cur); // heal + Act-2 map, act → 2
+        bankContentUnlocksNow(next); // persist the first-reach biome unlock + discoveries (§2a)
+        commitAndRoute(next); // → the Act-2 map
+      },
       resolveEncounterTurn: (path) => {
         const cur = stateRef.current;
         if (cur === null || cur.phase.kind !== 'combat') {

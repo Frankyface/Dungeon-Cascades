@@ -12,12 +12,19 @@ import {
   scoreForRun,
   startRun,
 } from '../../engine/run';
+import type { RunState } from '../../engine/run';
 import {
   INITIAL_BANK_LEDGER,
+  applyContentUnlocks,
   bankRunOnce,
   bankScoreOnce,
   runIdentity,
 } from './metaBanking';
+
+/** A synthetic 2-act VICTORY terminal (reached Act 2 + beat its boss) for content-unlock tests. */
+function act2Victory(seed: number): RunState {
+  return { ...startRun(seed), act: 2, status: 'victory', phase: { kind: 'ended' } } as RunState;
+}
 
 describe('runIdentity', () => {
   it('tags a vanilla run by seed with a vanilla marker', () => {
@@ -113,5 +120,42 @@ describe('bankRunOnce — derives the run score from the terminal state', () => 
     const past = UNLOCK_TRANCHES[UNLOCK_TRANCHES.length - 1].score;
     const { outcome } = bankScoreOnce(INITIAL_BANK_LEDGER, 'run-a', past);
     expect(outcome.newlyUnlockedIds).toEqual([...VARIANT_IDS]);
+  });
+
+  it('carries an empty content-unlock list on a score-only bank', () => {
+    const { outcome } = bankScoreOnce(INITIAL_BANK_LEDGER, 'run-a', 30);
+    expect(outcome.unlockEvents).toEqual([]);
+  });
+});
+
+describe('content unlocks (Stage-6 §2) fold into banking', () => {
+  it('applyContentUnlocks is idempotent: a second call yields no new events and the SAME ledger', () => {
+    const terminal = act2Victory(7);
+    const first = applyContentUnlocks(INITIAL_BANK_LEDGER, terminal);
+    expect(first.events.length).toBeGreaterThan(0);
+    expect(first.ledger.meta.unlockedBiomeIds).toContain(terminal.act2BiomeId);
+
+    const second = applyContentUnlocks(first.ledger, terminal);
+    expect(second.events).toEqual([]);
+    expect(second.ledger).toBe(first.ledger); // unchanged reference when nothing is new
+  });
+
+  it('bankRunOnce surfaces the biome + boss-legendary a 2-act victory earned', () => {
+    const terminal = act2Victory(42);
+    const { outcome, ledger, didBank } = bankRunOnce(INITIAL_BANK_LEDGER, terminal);
+    expect(didBank).toBe(true);
+    const kinds = outcome.unlockEvents.map((e) => e.kind);
+    expect(kinds).toContain('biome');
+    expect(kinds).toContain('relic'); // the biome legendary + the boss legendary
+    expect(ledger.meta.unlockedBiomeIds).toContain(terminal.act2BiomeId);
+  });
+
+  it('replays a re-banked terminal run without re-firing its content events', () => {
+    const terminal = act2Victory(99);
+    const first = bankRunOnce(INITIAL_BANK_LEDGER, terminal);
+    const second = bankRunOnce(first.ledger, terminal);
+    expect(second.didBank).toBe(false);
+    expect(second.outcome.unlockEvents).toEqual(first.outcome.unlockEvents);
+    expect(second.ledger.meta.score).toBe(first.ledger.meta.score);
   });
 });

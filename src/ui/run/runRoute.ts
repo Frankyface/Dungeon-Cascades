@@ -14,6 +14,8 @@ export type RunRoute =
   | '/run/shop'
   | '/run/event'
   | '/run/rest'
+  | '/run/altar'
+  | '/run/transition'
   | '/run/victory'
   | '/run/defeat';
 
@@ -27,7 +29,6 @@ export function routeForRunState(state: RunState): RunRoute {
   switch (phase.kind) {
     case 'awaiting_node':
     case 'awaiting_move':
-    case 'act_transition': // the between-acts moment shows on the map screen (advanceAct then routes on)
       return '/run';
     case 'combat':
       return '/run/encounter';
@@ -40,11 +41,14 @@ export function routeForRunState(state: RunState): RunRoute {
     case 'rest':
       return '/run/rest';
     case 'altar':
-      // Engine-only mechanical fallback: the altar phase shows on the MAP screen for now; the UI
-      // wave adds the dedicated `/run/altar` sacrifice screen (and its route). (§2c)
-      return '/run';
+      // The dedicated Altar sacrifice ceremony (§2c) — explains the trade, offers Sacrifice / Leave.
+      return '/run/altar';
+    case 'act_transition':
+      // The "Act 1 cleared" beat: heal + the Act-2 biome reveal + first-reach unlock ceremony (§1/§2a).
+      return '/run/transition';
     case 'ended':
-      // `sacrificed` counts as a defeat (§2c); the UI wave can add a dedicated sacrifice ceremony.
+      // `victory` → the win screen; `defeat` AND `sacrificed` (§2c) both go to the defeat outcome,
+      // which tailors its copy by `status` (a sacrifice reads as a deliberate trade, not a death).
       return state.status === 'victory' ? '/run/victory' : '/run/defeat';
   }
 }

@@ -4,16 +4,21 @@
  * Abandon it. Below that, the Stage-1/2 sandbox stays reachable: the "Naked Board" and a fight
  * per enemy (driven by the engine registry so it stays in sync, each row previewing the weakness).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ENEMY_IDS, getEnemy } from '../../engine/combat';
 import type { EnemyId } from '../../engine/combat';
+import type { MetaState } from '../../engine/run';
 import { COMBAT_COLORS } from '../combat/combatColors';
 import { ENEMY_GLYPH, buildAffinityChips, enemyName } from '../combat/combatFormat';
 import { hydrateRunStore, isRunStoreHydrated, runStore, stageResumeRun } from '../run/runController';
-import { hydrateMetaStore, isMetaStoreHydrated, metaState } from '../run/metaController';
+import { hydrateMetaStore, isDevMode, isMetaStoreHydrated, metaState } from '../run/metaController';
+import { bossRushGate } from '../bossRush/bossRushModel';
 import { menuHydration, runSection, type MenuHydration } from './menuState';
+
+/** Taps on the title needed to open the secret dev screen (spec §8). */
+const DEV_TAP_THRESHOLD = 7;
 
 function weaknessHint(enemyId: EnemyId): string {
   const chips = buildAffinityChips(getEnemy(enemyId).affinity);
@@ -28,10 +33,20 @@ export function MenuScreen() {
   // Lazy-init from the store: on a warm remount (returning from a run) the mirror is already
   // hydrated, so the run section renders its final state with no "Loading…" flash.
   const [hasSave, setHasSave] = useState(() => runStore().load() !== null);
-  const [totalScore, setTotalScore] = useState(() => metaState().score);
+  const [meta, setMeta] = useState<MetaState>(() => metaState());
   const [hydration, setHydration] = useState<MenuHydration>(() =>
     menuHydration(isRunStoreHydrated(), isMetaStoreHydrated()),
   );
+  // Secret dev entry: 7 taps on the title (spec §8).
+  const devTapsRef = useRef(0);
+  const handleTitleTap = (): void => {
+    devTapsRef.current += 1;
+    if (devTapsRef.current >= DEV_TAP_THRESHOLD) {
+      devTapsRef.current = 0;
+      router.push('/dev');
+    }
+  };
+  const totalScore = meta.score;
 
   // Cold-start: hydrate BOTH the saved run and the meta profile from disk BEFORE the run section
   // becomes interactive. The run store guards against a premature "Start a run" tap clobbering an
@@ -41,10 +56,10 @@ export function MenuScreen() {
   useEffect(() => {
     let active = true;
     Promise.all([hydrateRunStore(), hydrateMetaStore()])
-      .then(([saved, meta]) => {
+      .then(([saved, loadedMeta]) => {
         if (!active) return;
         setHasSave(saved !== null);
-        setTotalScore(meta.score);
+        setMeta(loadedMeta);
         setHydration('ready');
       })
       .catch(() => {
@@ -77,12 +92,21 @@ export function MenuScreen() {
   };
 
   const section = runSection(hydration, hasSave);
+  const bossRush = bossRushGate(meta);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {isDevMode() ? (
+        <View style={styles.devBanner}>
+          <Text style={styles.devBannerText}>● DEV MODE ACTIVE</Text>
+        </View>
+      ) : null}
+
       <View style={styles.header}>
-        <Text style={styles.title}>Dungeon Cascades</Text>
-        <Text style={styles.subtitle}>Stage 3 · The Run</Text>
+        <Pressable onPress={handleTitleTap}>
+          <Text style={styles.title}>Dungeon Cascades</Text>
+        </Pressable>
+        <Text style={styles.subtitle}>Skill-based rogue-lite match-3</Text>
         {hydration === 'ready' ? <Text style={styles.metaScore}>Total score {totalScore}</Text> : null}
       </View>
 
@@ -123,14 +147,37 @@ export function MenuScreen() {
         </Pressable>
       )}
 
+      <Text style={styles.sectionLabel}>Challenge</Text>
+
+      <Pressable
+        onPress={() => router.push('/boss-rush')}
+        style={({ pressed }) => [styles.card, bossRush.unlocked && styles.runCard, pressed && styles.pressed]}
+      >
+        <View style={styles.enemyRow}>
+          <Text style={styles.cardTitle}>⚔️ Boss Rush</Text>
+          {bossRush.unlocked ? null : <Text style={styles.lockTag}>🔒 {bossRush.discoveredCount}/{bossRush.total}</Text>}
+        </View>
+        <Text style={styles.cardHint}>
+          {bossRush.unlocked ? 'All five bosses, back-to-back. Win to earn the God of War.' : `Locked · ${bossRush.label}`}
+        </Text>
+      </Pressable>
+
       <Text style={styles.sectionLabel}>Reference</Text>
+
+      <Pressable
+        onPress={() => router.push('/tutorial')}
+        style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      >
+        <Text style={styles.cardTitle}>❓ How to play</Text>
+        <Text style={styles.cardHint}>The drag, the damage math, affinity, relics, acts & the altar</Text>
+      </Pressable>
 
       <Pressable
         onPress={() => router.push('/compendium')}
         style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       >
         <Text style={styles.cardTitle}>📖 Compendium</Text>
-        <Text style={styles.cardHint}>Relics, enemies & the boss — every number, straight from the engine</Text>
+        <Text style={styles.cardHint}>Relics, enemies & bosses — discover them all, every number from the engine</Text>
       </Pressable>
 
       <Text style={styles.sectionLabel}>Sandbox</Text>
@@ -175,6 +222,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 12,
     alignItems: 'stretch',
+  },
+  devBanner: {
+    backgroundColor: '#c0202a',
+    borderRadius: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  devBannerText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  lockTag: {
+    color: COMBAT_COLORS.subtle,
+    fontSize: 13,
+    fontWeight: '800',
   },
   header: {
     alignItems: 'center',

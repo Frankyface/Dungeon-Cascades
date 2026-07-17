@@ -7,8 +7,10 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { Redirect } from 'expo-router';
-import { getVariant } from '../../engine/run';
+import { getBossForBiome, getVariant } from '../../engine/run';
 import { RelicCardView } from './RelicCardView';
+import { CeremonyCardView } from './CeremonyCardView';
+import { ceremonyCards } from './unlockCeremony';
 import { relicCards } from './relicPresentation';
 import { computeRunSummary } from './runSummary';
 import { bankRunOutcome } from './metaController';
@@ -39,15 +41,23 @@ export function RunOutcomeScreen({ outcome }: RunOutcomeScreenProps) {
 
   const summary = computeRunSummary(state);
   const won = outcome === 'victory';
+  const sacrificed = state.status === 'sacrificed';
+
+  const title = won ? 'Run Complete' : sacrificed ? 'Sacrificed' : 'You Died';
+  const subtitle = won
+    ? `${getBossForBiome(state.act2BiomeId).name} falls. The run is yours.`
+    : sacrificed
+      ? 'You gave this run to the altar — a relic is bound to you forever.'
+      : `Fell on floor ${summary.floorsReached + 1} of ${summary.floorCount}.`;
+
+  const ceremonies = bank === null ? [] : ceremonyCards(bank.unlockEvents);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <Text style={[styles.title, { color: won ? RUN_COLORS.winText : RUN_COLORS.loseText }]}>
-        {won ? 'Run Complete' : 'You Died'}
+      <Text style={[styles.title, { color: won ? RUN_COLORS.winText : sacrificed ? RUN_COLORS.gold : RUN_COLORS.loseText }]}>
+        {title}
       </Text>
-      <Text style={styles.subtitle}>
-        {won ? 'The Bone Colossus falls. The dungeon is yours.' : `Fell on floor ${summary.floorsReached + 1} of ${summary.floorCount}.`}
-      </Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
 
       {bank !== null ? (
         <View style={styles.metaPanel}>
@@ -63,6 +73,15 @@ export function RunOutcomeScreen({ outcome }: RunOutcomeScreenProps) {
               </Text>
             </View>
           ) : null}
+        </View>
+      ) : null}
+
+      {ceremonies.length > 0 ? (
+        <View style={styles.ceremonies}>
+          <Text style={styles.sectionLabel}>Unlocked this run</Text>
+          {ceremonies.map((card) => (
+            <CeremonyCardView key={card.key} card={card} />
+          ))}
         </View>
       ) : null}
 
@@ -147,6 +166,7 @@ const styles = StyleSheet.create({
   statValue: { color: RUN_COLORS.text, fontSize: 22, fontWeight: '900' },
   statLabel: { color: RUN_COLORS.subtle, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   relics: { gap: 10, marginTop: 6 },
+  ceremonies: { gap: 10, marginTop: 6 },
   sectionLabel: { color: RUN_COLORS.subtle, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
   buttons: { gap: 12, marginTop: 12 },
   button: { backgroundColor: RUN_COLORS.buttonBg, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },

@@ -10,6 +10,7 @@
 import { startRun } from '../../engine/run';
 import type { RunState } from '../../engine/run';
 import { AsyncStorageRunStore } from './asyncStorageRunStore';
+import { metaState } from './metaController';
 
 const store = new AsyncStorageRunStore();
 let staged: RunState | null = null;
@@ -45,9 +46,13 @@ export function makeRunSeed(): number {
  * `variantId` is OPTIONAL (Stage 4): omit it for a vanilla start (byte-identical to before), or
  * pass a variant id (from the start-selection screen) to begin from that sidegrade. The engine's
  * `startRun` validates the id and bakes the variant's modifiers into the initial state.
+ *
+ * The run also snapshots the profile's UNLOCKED RELIC POOL (Stage-6 §2) from the live meta, so this
+ * run's drafts / shops / event grants offer exactly the relics the player has unlocked (locked relics
+ * never appear). A fresh profile's snapshot is the base 12, so a first run is unchanged.
  */
 export function stageNewRun(seed: number = makeRunSeed(), variantId?: string): RunState {
-  staged = startRun(seed, variantId);
+  staged = startRun(seed, variantId, metaState().unlockedRelicIds);
   store.save(staged);
   return staged;
 }
@@ -56,6 +61,17 @@ export function stageNewRun(seed: number = makeRunSeed(), variantId?: string): R
 export function stageResumeRun(): RunState | null {
   staged = store.load();
   return staged;
+}
+
+/**
+ * Stage an ALREADY-BUILT run state for the provider to pick up, and persist it. Used by dev mode
+ * (spec §8), which constructs a run from overrides (fixed seed / forced Act-2 biome / jump-to-act-2)
+ * via the engine's pure flow rather than the standard `stageNewRun` path.
+ */
+export function stageRunState(run: RunState): RunState {
+  staged = run;
+  store.save(run);
+  return run;
 }
 
 /** The provider consumes the staged run exactly once at mount (falls back to the saved run). */

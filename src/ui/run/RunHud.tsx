@@ -9,6 +9,7 @@ import { nodeById } from '../../engine/run';
 import { formatHp, hpFraction } from '../combat/combatFormat';
 import { RelicCardView } from './RelicCardView';
 import { relicCards } from './relicPresentation';
+import { runTheme } from './biomeTheme';
 import { RUN_COLORS } from './runColors';
 import { useRun } from './RunContext';
 
@@ -27,9 +28,18 @@ export function RunHud({ compact }: RunHudProps) {
 
   const floor = nodeById(state.map, state.mapState.currentNodeId).floor;
   const relicCount = state.relicIds.length;
+  const theme = runTheme(state);
 
   return (
     <View style={styles.bar}>
+      {/* Act indicator — "Act 2 · The Rotwood", tinted by the current act's biome. */}
+      <View style={[styles.actRow, { borderColor: theme.edge }]}>
+        <View style={[styles.actDot, { backgroundColor: theme.ring }]} />
+        <Text style={[styles.actText, { color: theme.ring }]}>
+          Act {state.act} · {theme.name}
+        </Text>
+      </View>
+
       {compact ? null : (
         <View style={styles.hpBlock}>
           <View style={styles.hpTrack}>
@@ -82,6 +92,23 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     gap: 8,
+  },
+  actRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderBottomWidth: 1,
+    paddingBottom: 6,
+  },
+  actDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  actText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
   hpBlock: {
     gap: 4,

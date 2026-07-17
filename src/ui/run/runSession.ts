@@ -15,6 +15,7 @@ import {
   buyFromShop,
   chooseEventOption,
   enterNode,
+  leaveAltar,
   leaveRest,
   leaveShop,
   resolveDraftPick,
@@ -33,6 +34,7 @@ export type RunUiAction =
   | { readonly type: 'eventChoice'; readonly index: number }
   | { readonly type: 'rest' }
   | { readonly type: 'restLeave' }
+  | { readonly type: 'altarLeave' } // leave the altar without sacrificing (a no-op node)
   | { readonly type: 'abandon' };
 
 /**
@@ -59,6 +61,8 @@ export function applyRunAction(state: RunState, action: RunUiAction, options: Ru
       return restAtNode(state);
     case 'restLeave':
       return leaveRest(state);
+    case 'altarLeave':
+      return leaveAltar(state);
     case 'abandon':
       return abandonRun(state);
   }

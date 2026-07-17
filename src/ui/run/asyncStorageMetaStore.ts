@@ -11,19 +11,30 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { MetaState, MetaStorePort } from '../../engine/run';
+import { META_STORAGE_KEY } from './metaStorageKeys';
 
-/** Storage key (versioned so a future meta-schema bump can migrate cleanly). Distinct from the run key. */
-export const META_STORAGE_KEY = 'dungeon-cascades/meta/v1';
+// Re-export for existing call sites (the key constants now live in a native-free module).
+export { META_STORAGE_KEY, DEV_META_STORAGE_KEY } from './metaStorageKeys';
 
 export class AsyncStorageMetaStore implements MetaStorePort {
   private mirror: MetaState | null = null;
   private hydrated = false;
+  private readonly key: string;
+
+  /**
+   * @param key The storage key this store persists under. Defaults to the normal meta key; dev-mode
+   *   passes `DEV_META_STORAGE_KEY` so dev state persists to a SEPARATE slot and never touches normal
+   *   meta (spec §8 storage separation).
+   */
+  constructor(key: string = META_STORAGE_KEY) {
+    this.key = key;
+  }
 
   /** Persist the profile: update the mirror now, flush to disk in the background. */
   save(state: MetaState): void {
     this.mirror = state;
     this.hydrated = true;
-    void AsyncStorage.setItem(META_STORAGE_KEY, JSON.stringify(state)).catch((err) => {
+    void AsyncStorage.setItem(this.key, JSON.stringify(state)).catch((err) => {
       console.warn('[meta-store] save failed:', err);
     });
   }
@@ -37,7 +48,7 @@ export class AsyncStorageMetaStore implements MetaStorePort {
   clear(): void {
     this.mirror = null;
     this.hydrated = true;
-    void AsyncStorage.removeItem(META_STORAGE_KEY).catch((err) => {
+    void AsyncStorage.removeItem(this.key).catch((err) => {
       console.warn('[meta-store] clear failed:', err);
     });
   }
@@ -55,7 +66,7 @@ export class AsyncStorageMetaStore implements MetaStorePort {
       return this.mirror;
     }
     try {
-      const raw = await AsyncStorage.getItem(META_STORAGE_KEY);
+      const raw = await AsyncStorage.getItem(this.key);
       this.mirror = raw ? (JSON.parse(raw) as MetaState) : null;
     } catch (err) {
       console.warn('[meta-store] hydrate failed, treating as no save:', err);

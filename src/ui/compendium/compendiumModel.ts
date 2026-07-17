@@ -14,16 +14,22 @@ import {
   BOSS_PHASES,
   DEFAULT_MAP_CONFIG,
   RELIC_IDS,
+  actFloorOffset,
   bossEnemyForPhase,
+  bossEnemyForPhaseOf,
   bossMaxHp,
+  bossMaxHpFor,
   bossPhaseForHp,
   difficultyAt,
+  scaledBiomeEnemyFor,
   scaledEnemyFor,
 } from '../../engine/run';
+import type { Boss } from '../../engine/run';
 import { ENEMY_GLYPH, buildAffinityChips, enemyName, formatIntent } from '../combat/combatFormat';
 import type { AffinityChips } from '../combat/combatFormat';
 import { relicCards } from '../run/relicPresentation';
 import type { RelicCard } from '../run/relicPresentation';
+import { bossGlyph, bossName, enemyDef, enemyDisplayName, enemyGlyph, isBaseEnemyId } from './entityPresentation';
 
 /**
  * A representative mid-run floor for the enemy "Elite" scaling example. The default plan is 13
@@ -121,6 +127,34 @@ export function compendiumEnemies(): readonly CompendiumEnemyEntry[] {
   return ENEMY_IDS.map(compendiumEnemy);
 }
 
+/**
+ * The compendium DETAIL for ANY enemy id — the three base enemies OR the 16 biome enemies (Stage-6).
+ * Base enemies sample their elite scaling at the Act-1 mid floor; biome enemies at the equivalent
+ * Act-2 mid floor (`+ACT_FLOOR_SPAN`), reusing the SAME scaling machinery, so the numbers match a
+ * real deep encounter. Glyph + name come from the shared entity tables.
+ */
+export function compendiumEnemyDetail(id: string): CompendiumEnemyEntry {
+  const base = enemyDef(id);
+  const isBase = isBaseEnemyId(id);
+  const sampleFloor = ELITE_SAMPLE_FLOOR + (isBase ? 0 : actFloorOffset(2));
+  const elite = isBase
+    ? scaledEnemyFor(id as EnemyId, sampleFloor, true)
+    : scaledBiomeEnemyFor(id as never, sampleFloor, true);
+  return {
+    id: id as EnemyId,
+    name: enemyDisplayName(id),
+    glyph: enemyGlyph(id),
+    baseHp: base.maxHp,
+    affinity: buildAffinityChips(base.affinity),
+    scriptCycle: scriptCycleText(base.script),
+    elite: {
+      floor: sampleFloor,
+      hp: elite.maxHp,
+      scriptCycle: scriptCycleText(elite.script),
+    },
+  };
+}
+
 // ── Boss ─────────────────────────────────────────────────────────────────────
 
 /** One boss phase entry: name, its HP band, affinity shift chips, and the scaled intent cycle. */
@@ -193,6 +227,39 @@ export function compendiumBoss(): CompendiumBossEntry {
     glyph: BOSS_GLYPH,
     floor,
     baseHp: BOSS_BASE_HP,
+    maxHp,
+    phases,
+    fairnessNote: BOSS_FAIRNESS_NOTE,
+  };
+}
+
+/**
+ * The generalized boss compendium entry for ANY boss (Stage-6): the Bone Colossus OR one of the four
+ * biome bosses, floor-scaled at `floor` (the boss's real encounter floor — Act-1 boss floor for the
+ * dungeon, Act-2 boss floor for a biome). Reuses the SAME per-of scaling helpers the run drives the
+ * boss with, so the numbers match a live fight; glyph + name come from the shared entity tables.
+ */
+export function compendiumBossFor(boss: Boss, floor: number): CompendiumBossEntry {
+  const maxHp = bossMaxHpFor(boss.baseHp, floor);
+  const diff = difficultyAt(floor);
+  const bands = bossPhaseHpBands(maxHp);
+  const phases = boss.phases.map((phase, i): CompendiumBossPhaseEntry => {
+    const scaled = bossEnemyForPhaseOf(boss, i, maxHp, diff);
+    const band = bands[i];
+    return {
+      name: phase.name,
+      hpHigh: band.high,
+      hpLow: band.low,
+      hpBand: `${band.high}–${band.low} HP`,
+      affinity: buildAffinityChips(phase.affinity),
+      scriptCycle: scriptCycleText(scaled.script),
+    };
+  });
+  return {
+    name: bossName(boss.id),
+    glyph: bossGlyph(boss.id),
+    floor,
+    baseHp: boss.baseHp,
     maxHp,
     phases,
     fairnessNote: BOSS_FAIRNESS_NOTE,

@@ -1,35 +1,59 @@
 /**
- * The Compendium: an in-game encyclopedia of relics, enemies, and the boss. A simple three-tab
- * segmented control switches sections inside one scroll view — the least machinery that still reads
- * cleanly. Every card is a thin renderer over the pure `compendiumModel` view-models, so the numbers
- * shown are exactly the engine's (relic modifiers, ENEMY_STATS, the elite/boss scaling formulas).
+ * The Compendium: a DISCOVERY-DRIVEN encyclopedia of relics, enemies, and bosses (Stage-6 §4).
+ * Undiscovered entries render as locked silhouettes ("Undiscovered"); discovered ones show the full
+ * card (every number read straight from the engine, via the pure `compendium*` view-models). Enemies
+ * and bosses are grouped by biome, and each tab shows an "N/M discovered" count. The screen reads the
+ * live meta profile (it sits above the run provider, like the start-select screen).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { MetaState } from '../../engine/run';
 import { RelicCardView } from '../run/RelicCardView';
+import { hydrateMetaStore, metaState } from '../run/metaController';
 import { RUN_COLORS } from '../run/runColors';
 import { CompendiumEnemyCard } from './CompendiumEnemyCard';
 import { CompendiumBossCard } from './CompendiumBossCard';
-import { compendiumBoss, compendiumEnemies, compendiumRelics } from './compendiumModel';
+import { LockedEntryCard } from './LockedEntryCard';
+import {
+  compendiumBossSection,
+  compendiumEnemySection,
+  compendiumRelicSection,
+  type SectionCount,
+} from './compendiumDiscovery';
 
-type CompendiumSection = 'relics' | 'enemies' | 'boss';
+type CompendiumSection = 'relics' | 'enemies' | 'bosses';
 
 const SECTIONS: ReadonlyArray<{ readonly key: CompendiumSection; readonly label: string }> = [
   { key: 'relics', label: 'Relics' },
   { key: 'enemies', label: 'Enemies' },
-  { key: 'boss', label: 'Boss' },
+  { key: 'bosses', label: 'Bosses' },
 ];
 
 export function CompendiumScreen() {
   const router = useRouter();
   const [section, setSection] = useState<CompendiumSection>('relics');
+  // Read the live profile now (menu already hydrated it); re-adopt on mount for correctness.
+  const [meta, setMeta] = useState<MetaState>(() => metaState());
+  useEffect(() => {
+    let active = true;
+    hydrateMetaStore()
+      .then((m) => {
+        if (active) setMeta(m);
+      })
+      .catch(() => {
+        /* hydrate treats failure as a fresh profile — everything shows locked */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>📖 Compendium</Text>
-        <Text style={styles.subtitle}>Every number here is read straight from the engine.</Text>
+        <Text style={styles.subtitle}>Discover the dungeon. Every number is read straight from the engine.</Text>
       </View>
 
       <View style={styles.tabs}>
@@ -48,9 +72,9 @@ export function CompendiumScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {section === 'relics' ? <RelicsSection /> : null}
-        {section === 'enemies' ? <EnemiesSection /> : null}
-        {section === 'boss' ? <BossSection /> : null}
+        {section === 'relics' ? <RelicsSection meta={meta} /> : null}
+        {section === 'enemies' ? <EnemiesSection meta={meta} /> : null}
+        {section === 'bosses' ? <BossesSection meta={meta} /> : null}
 
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
           <Text style={styles.backText}>Back</Text>
@@ -60,33 +84,71 @@ export function CompendiumScreen() {
   );
 }
 
-function RelicsSection() {
+/** A section header line with the "N/M discovered" count. */
+function CountLabel({ noun, count }: { readonly noun: string; readonly count: SectionCount }) {
+  return (
+    <Text style={styles.countLabel}>
+      {noun} {count.label} discovered
+    </Text>
+  );
+}
+
+function RelicsSection({ meta }: { readonly meta: MetaState }) {
+  const { slots, count } = compendiumRelicSection(meta);
   return (
     <>
-      <Text style={styles.blurb}>Twelve relics. Common and elite tiers — draft, buy, or find them.</Text>
-      {compendiumRelics().map((card) => (
-        <RelicCardView key={card.id} card={card} />
+      <CountLabel noun="Relics" count={count} />
+      <Text style={styles.blurb}>Common, epic and legendary. Unlock them by drafting, reaching biomes, killing bosses, or the altar.</Text>
+      {slots.map((slot) =>
+        slot.card !== null ? (
+          <RelicCardView key={slot.id} card={slot.card} />
+        ) : (
+          <LockedEntryCard key={slot.id} label="Undiscovered" hint="Unlock it to reveal" />
+        ),
+      )}
+    </>
+  );
+}
+
+function EnemiesSection({ meta }: { readonly meta: MetaState }) {
+  const { groups, count } = compendiumEnemySection(meta);
+  return (
+    <>
+      <CountLabel noun="Enemies" count={count} />
+      {groups.map((group) => (
+        <View key={group.biomeId} style={styles.group}>
+          <View style={styles.groupHeader}>
+            <Text style={styles.groupName}>{group.biomeName}</Text>
+            <Text style={styles.groupCount}>{group.count.label}</Text>
+          </View>
+          {group.slots.map((slot) =>
+            slot.detail !== null ? (
+              <CompendiumEnemyCard key={slot.id} entry={slot.detail} />
+            ) : (
+              <LockedEntryCard key={slot.id} label="Undiscovered" hint="Fight it to reveal" />
+            ),
+          )}
+        </View>
       ))}
     </>
   );
 }
 
-function EnemiesSection() {
+function BossesSection({ meta }: { readonly meta: MetaState }) {
+  const { slots, count } = compendiumBossSection(meta);
   return (
     <>
-      <Text style={styles.blurb}>Base stats and the elite-scaled example you meet deeper in a run.</Text>
-      {compendiumEnemies().map((entry) => (
-        <CompendiumEnemyCard key={entry.id} entry={entry} />
+      <CountLabel noun="Bosses" count={count} />
+      {slots.map((slot) => (
+        <View key={slot.bossId} style={styles.group}>
+          <Text style={styles.bossBiome}>{slot.biomeName}</Text>
+          {slot.detail !== null ? (
+            <CompendiumBossCard entry={slot.detail} />
+          ) : (
+            <LockedEntryCard label="Undiscovered" hint="Reach and defeat it to reveal" />
+          )}
+        </View>
       ))}
-    </>
-  );
-}
-
-function BossSection() {
-  return (
-    <>
-      <Text style={styles.blurb}>The terminal fight — one HP pool, three phases, a shifting weakness.</Text>
-      <CompendiumBossCard entry={compendiumBoss()} />
     </>
   );
 }
@@ -148,11 +210,44 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     gap: 12,
   },
+  countLabel: {
+    color: RUN_COLORS.edgeActive,
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
   blurb: {
     color: RUN_COLORS.subtle,
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 2,
+  },
+  group: {
+    gap: 10,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  groupName: {
+    color: RUN_COLORS.text,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  groupCount: {
+    color: RUN_COLORS.subtle,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  bossBiome: {
+    color: RUN_COLORS.subtle,
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 6,
   },
   backButton: {
     backgroundColor: RUN_COLORS.buttonBg,

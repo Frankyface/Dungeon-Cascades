@@ -13,6 +13,7 @@ import type { LaidOutNode } from './mapLayout';
 import { NODE_GLYPH, NODE_LABEL, isNodeTappable, nodeInteraction } from './nodePresentation';
 import type { NodeInteraction } from './nodePresentation';
 import { routeForRunState } from './runRoute';
+import { runTheme } from './biomeTheme';
 import { NODE_COLOR, RUN_COLORS } from './runColors';
 import { RunHud } from './RunHud';
 import { useRun } from './RunContext';
@@ -43,6 +44,7 @@ export function MapScreen() {
     return <Redirect href={phaseRoute} />;
   }
 
+  const theme = runTheme(state);
   const isMovePhase = state.phase.kind === 'awaiting_move';
   const hint = isMovePhase ? 'Choose your next node' : 'Tap the glowing node to enter';
 
@@ -56,7 +58,7 @@ export function MapScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: theme.tint }]}>
       <View style={styles.header}>
         <RunHud />
         <View style={styles.hintRow}>
@@ -86,7 +88,7 @@ export function MapScreen() {
                   left: g.left,
                   top: g.top - MAP_EDGE_THICKNESS / 2,
                   width: g.length,
-                  backgroundColor: active ? RUN_COLORS.edgeActive : RUN_COLORS.edge,
+                  backgroundColor: active ? theme.ring : RUN_COLORS.edge,
                   transform: [{ rotate: `${g.angleDeg}deg` }],
                 },
               ]}
@@ -100,6 +102,7 @@ export function MapScreen() {
             node={node}
             interaction={nodeInteraction(state, node.id)}
             size={layout.nodeSize}
+            ring={theme.ring}
             onPress={() => handleTap(node)}
           />
         ))}
@@ -112,11 +115,14 @@ function MapNodeMarker({
   node,
   interaction,
   size,
+  ring,
   onPress,
 }: {
   readonly node: LaidOutNode;
   readonly interaction: NodeInteraction;
   readonly size: number;
+  /** The current-act biome's ring color (Act 1 keeps the base cyan). */
+  readonly ring: string;
   readonly onPress: () => void;
 }) {
   const tappable = interaction === 'current-enter' || interaction === 'travel';
@@ -141,7 +147,7 @@ function MapNodeMarker({
           height: size,
           borderRadius: size / 2,
           backgroundColor: fill,
-          borderColor: isCurrent ? RUN_COLORS.currentRing : 'transparent',
+          borderColor: isCurrent ? ring : 'transparent',
           borderWidth: isCurrent ? 3 : 0,
         },
         tappable && styles.tappable,

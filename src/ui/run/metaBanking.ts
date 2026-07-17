@@ -9,8 +9,8 @@
  * testable with no React and no native storage — the `metaController` singleton just holds the
  * ledger and persists the resulting `MetaState`. No React / React Native imports; never mutates.
  */
-import { INITIAL_META_STATE, bankRun, scoreForRun } from '../../engine/run';
-import type { MetaState, RunState } from '../../engine/run';
+import { INITIAL_META_STATE, bankRun, deriveUnlocks, scoreForRun } from '../../engine/run';
+import type { MetaState, RunState, UnlockEvent } from '../../engine/run';
 
 /** What a single banked run produced — the numbers the outcome screen shows, plus the new meta. */
 export interface BankOutcome {
@@ -20,8 +20,34 @@ export interface BankOutcome {
   readonly totalScore: number;
   /** Variant ids this run's score just crossed the tranche for (empty if none), canonical order. */
   readonly newlyUnlockedIds: readonly string[];
+  /**
+   * CONTENT unlock events (Stage-6 §2) this bank surfaced — biome reached, legendary relic unlocked,
+   * enemy/boss discovered, Boss Rush opened. Empty for a score-only bank. The outcome screen renders
+   * these as ceremony cards alongside the score. Derived idempotently, so a replayed bank replays the
+   * same list without re-applying anything.
+   */
+  readonly unlockEvents: readonly UnlockEvent[];
   /** The profile state after banking (persist this). */
   readonly meta: MetaState;
+}
+
+/** The result of applying content unlocks to a ledger: the (possibly unchanged) ledger + new events. */
+export interface ContentUnlockResult {
+  readonly ledger: BankLedger;
+  readonly events: readonly UnlockEvent[];
+}
+
+/**
+ * Apply a run state's CONTENT unlocks/discoveries (spec §2) to a ledger's meta, IDEMPOTENTLY. Folds
+ * `deriveUnlocks(state, meta)` into the ledger; when nothing is new the SAME ledger reference is
+ * returned (so callers can cheaply detect "no change"). Not keyed by run identity — it relies on
+ * `deriveUnlocks` being idempotent (re-applying an already-applied state yields no events), so it is
+ * safe to call at BOTH a checkpoint (the act transition) and the terminal outcome.
+ */
+export function applyContentUnlocks(ledger: BankLedger, state: RunState): ContentUnlockResult {
+  const { meta, events } = deriveUnlocks(state, ledger.meta);
+  if (events.length === 0) return { ledger, events };
+  return { ledger: { ...ledger, meta }, events };
 }
 
 /**
@@ -72,6 +98,7 @@ export function bankScoreOnce(ledger: BankLedger, identity: string, runScore: nu
     runScore: Math.max(0, runScore),
     totalScore: nextMeta.score,
     newlyUnlockedIds,
+    unlockEvents: [],
     meta: nextMeta,
   };
   return {
@@ -81,7 +108,27 @@ export function bankScoreOnce(ledger: BankLedger, identity: string, runScore: nu
   };
 }
 
-/** Bank a terminal run ONCE, deriving its score from its final state (`scoreForRun`). */
+/**
+ * Bank a terminal run ONCE: first fold in its CONTENT unlocks (biome/boss/discoveries — idempotent),
+ * then bank its SCORE once (`scoreForRun`) onto the content-updated meta. The returned outcome carries
+ * BOTH the score numbers and the content unlock events, so the outcome screen celebrates everything a
+ * terminal run earned. A replay (same run identity) returns the STORED outcome untouched — its events
+ * intact, the meta not advanced.
+ */
 export function bankRunOnce(ledger: BankLedger, state: RunState): BankOnceResult {
-  return bankScoreOnce(ledger, runIdentity(state), scoreForRun(state));
+  const cu = applyContentUnlocks(ledger, state); // idempotent content-unlock fold
+  const score = bankScoreOnce(cu.ledger, runIdentity(state), scoreForRun(state));
+  if (!score.didBank) {
+    // Already banked this identity: the stored outcome (with its captured events) replays; the
+    // ledger already reflects the content unlocks from the first bank, so return it unchanged.
+    return score;
+  }
+  // Attach the content events to the freshly-banked outcome and re-store it under the identity.
+  const identity = runIdentity(state);
+  const outcome: BankOutcome = { ...score.outcome, unlockEvents: cu.events };
+  return {
+    ledger: { ...score.ledger, banked: { ...score.ledger.banked, [identity]: outcome } },
+    outcome,
+    didBank: true,
+  };
 }
