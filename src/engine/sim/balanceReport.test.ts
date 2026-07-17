@@ -44,6 +44,8 @@ describe('balance report — structure', () => {
     const text = formatBalanceReport(report);
     expect(text).toContain('Balance Report (full matrix)');
     expect(text).toContain('Purity gate (win rate vs vanilla, ±5pp band):');
+    expect(text).toContain('Biome fairness gate (vanilla Act-2 win% by biome, ≤10.0pp spread):');
+    expect(text).toContain('Fairness verdict:');
     expect(text).toContain('Per-config stats');
     expect(text).toContain('Vanilla deaths by cause:');
     expect(text).toContain('Vanilla deaths by floor:');
@@ -102,11 +104,35 @@ describe('balance report — fixed-seed pin (drift guard; games 8, seed 42)', ()
     expect(text).toContain('  boss                  2 (40.0%)');
     expect(text).toContain('  bulwark-rune              6    50.0   +12.5');
     expect(text).toContain('  misers-knuckle            4    75.0   +37.5');
+    // FAIRNESS-INSTRUMENTATION PIN (2026-07-17): the vanilla Act-2 per-biome win rates at N=8. Only
+    // 4 of 8 runs reached Act 2 (2 biomes played), so the 33.3pp spread is small-batch NOISE — the
+    // real ≤10pp gate is measured at scale (500 games ⇒ 3.7pp; see this wave's report). Semantic
+    // whitespace-tolerant pins lock the values; the verdict line is exact.
+    expect(text).toMatch(/glacial-crypt\s+3\s+2\s+66\.7/);
+    expect(text).toMatch(/emberworks\s+0\s+0\s+—/);
+    expect(text).toMatch(/sunken-catacombs\s+1\s+1\s+100\.0/);
+    expect(text).toContain('Fairness verdict: FAIL (spread 33.3pp > 10.0pp)');
   });
 
   it('pins the recorded win rates as raw values', () => {
     expect(report.vanillaWinRatePct).toBe(37.5);
     expect(report.rows.map((r) => r.winRatePct)).toEqual([37.5, 37.5, 50, 50, 50, 50, 50]);
+  });
+
+  it('pins the recorded vanilla per-biome fairness (counts + spread)', () => {
+    const vs = report.rows[0].summary;
+    // biome games + act1-deaths partition all 8 runs; biome wins sum to the 3 vanilla victories.
+    expect(vs.biomeBins.map((b) => [b.biomeId, b.games, b.wins])).toEqual([
+      ['glacial-crypt', 3, 2],
+      ['emberworks', 0, 0],
+      ['rotwood', 0, 0],
+      ['sunken-catacombs', 1, 1],
+    ]);
+    expect(vs.act1Deaths).toBe(4);
+    expect(vs.biomeBins.reduce((a, b) => a + b.games, 0) + vs.act1Deaths).toBe(8);
+    expect(vs.biomeBins.reduce((a, b) => a + b.wins, 0)).toBe(vs.victories);
+    // Spread over PLAYED biomes only (glacial 66.7%, sunken 100.0%) ⇒ 33.3pp (small-batch noise).
+    expect(vs.biomeSpreadPp).toBeCloseTo(33.333, 3);
   });
 });
 
@@ -139,6 +165,9 @@ describe('formatBalanceReport — synthetic edge cases (no engine drive)', () =>
       goldMeanAll: 0,
       relicsMeanAll: 0,
       movesBinsAll: [],
+      biomeBins: [],
+      act1Deaths: 0,
+      biomeSpreadPp: 0,
       deathsByCause: [],
       deathsByFloor: [],
       ...over,

@@ -8,6 +8,7 @@
  * timing is measured at the CLI level and reported to stderr — it never enters these
  * deterministic shapes.
  */
+import type { BiomeId } from '../combat';
 import type { EncounterKind } from '../run';
 
 /** The two run policies, by CLI name. `policy` is the measuring stick; `trivial` the floor. */
@@ -62,6 +63,21 @@ export interface RunGameResult {
   readonly goldSpent?: number;
   /** Meta score this run banks (floors + encounters won + victory bonus); 0 for a wedge. */
   readonly score?: number;
+  /**
+   * The run's Act-2 biome, recorded VERBATIM from the terminal RunState (`state.act2BiomeId`) — the
+   * single source of truth, NEVER re-derived in the sim. It is a pure function of the run seed and is
+   * fixed at `startRun`, so it is known even for a run that dies in Act 1 (that run simply never PLAYS
+   * the biome — see `reachedAct2`). OPTIONAL only so pre-existing hand-built `RunGameResult` fixtures
+   * still typecheck (same convention as the Stage-4 telemetry above); `playRun` always populates it.
+   */
+  readonly act2BiomeId?: BiomeId;
+  /**
+   * Whether the run actually ENTERED Act 2 — read from the terminal RunState (`state.act === 2`, which
+   * is monotonic 1→2). A run with `false` never reached its Act-2 biome and is counted as an Act-1
+   * death: it is EXCLUDED from the per-biome fairness buckets (the biome win-rate spread only measures
+   * runs that reached Act 2). OPTIONAL for the same fixture reason; `playRun` always populates it.
+   */
+  readonly reachedAct2?: boolean;
 }
 
 /**

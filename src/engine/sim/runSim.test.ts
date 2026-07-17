@@ -25,7 +25,8 @@ import {
   runRunHarness,
   summarizeRun,
 } from './index';
-import type { RunBotName, RunGameResult, RunHarnessConfig, RunSummary } from './index';
+import type { RunBotName, RunGameResult, RunHarnessConfig, RunOutcome, RunSummary } from './index';
+import type { BiomeId } from '../combat';
 
 const SEED = 42;
 const BATCH = 24;
@@ -100,6 +101,91 @@ describe('full-run sim — policy fixed-seed regression (24 runs, seed 42, TWO-A
     // The cause counts sum to the defeats total (every defeat is attributed).
     const sum = policy.deathsByCause.reduce((a, b) => a + b.count, 0);
     expect(sum).toBe(policy.defeats);
+  });
+});
+
+describe('full-run sim — Act-2 biome fairness instrumentation (24 runs, seed 42)', () => {
+  it('buckets each reached-Act-2 run by biome (canonical order) and tallies act1-deaths', () => {
+    // FAIRNESS-INSTRUMENTATION PIN (2026-07-17): recorded from the real 24-run policy batch. These
+    // are TINY-BATCH counts (a biome sees as few as 1 run), so the 0–100% win rates and 100pp spread
+    // are SAMPLING NOISE, not the balance signal — the real ≤10pp fairness gate is measured at 500+
+    // games (3.7pp there; see this wave's report). This pin only locks the deterministic aggregation
+    // + stdout-stable biome ordering so any drift fails npm test loudly.
+    expect(policy.biomeBins).toEqual([
+      { biomeId: 'glacial-crypt', games: 6, wins: 3, winRatePct: 50 },
+      { biomeId: 'emberworks', games: 2, wins: 0, winRatePct: 0 },
+      { biomeId: 'rotwood', games: 1, wins: 1, winRatePct: 100 },
+      { biomeId: 'sunken-catacombs', games: 3, wins: 3, winRatePct: 100 },
+    ]);
+    expect(policy.act1Deaths).toBe(12);
+    expect(policy.biomeSpreadPp).toBe(100);
+  });
+
+  it('biome games + act1-deaths partition every run, and biome wins sum to victories', () => {
+    const biomeGames = policy.biomeBins.reduce((a, b) => a + b.games, 0);
+    const biomeWins = policy.biomeBins.reduce((a, b) => a + b.wins, 0);
+    expect(biomeGames + policy.act1Deaths).toBe(BATCH);
+    expect(biomeWins).toBe(policy.victories);
+  });
+
+  it('the run report renders the per-biome fairness section', () => {
+    const report = formatRunReport(policy);
+    expect(report).toContain('Act-2 biome fairness (reached-Act-2 runs):');
+    expect(report).toMatch(/glacial-crypt\s+n\s+6\s+wins\s+3\s+win%\s+50\.0/);
+    expect(report).toMatch(/sunken-catacombs\s+n\s+3\s+wins\s+3\s+win%\s+100\.0/);
+    expect(report).toContain('act1-deaths: 12');
+    expect(report).toContain('max spread:  100.0pp');
+  });
+});
+
+describe('full-run sim — biome fairness aggregation (synthetic, no engine drive)', () => {
+  // Controlled batches exercise the reached-Act-2 gate and the played-only spread deterministically,
+  // independent of the heavy engine batch.
+  function biomeResult(biomeId: BiomeId, reachedAct2: boolean, outcome: RunOutcome): RunGameResult {
+    return {
+      seed: 0,
+      outcome,
+      encounters: 10,
+      moves: 50,
+      gold: 0,
+      relics: 0,
+      bossReached: reachedAct2,
+      floorReached: 12,
+      steps: 60,
+      death: outcome === 'defeat' ? { cause: 'boss', encounterKind: 'boss', floor: 12 } : null,
+      act2BiomeId: biomeId,
+      reachedAct2,
+    };
+  }
+
+  it('excludes never-reached-Act-2 runs from biome buckets; spread is over PLAYED biomes only', () => {
+    const config: RunHarnessConfig = { bot: 'policy', games: 5, baseSeed: 42, stepCap: DEFAULT_RUN_STEP_CAP };
+    const s = summarizeRun(config, [
+      biomeResult('glacial-crypt', true, 'victory'),
+      biomeResult('glacial-crypt', true, 'defeat'), // glacial 50%
+      biomeResult('emberworks', true, 'victory'), // ember 100%
+      biomeResult('rotwood', false, 'defeat'), // carries a biome but never reached Act 2 → act1-death
+      biomeResult('sunken-catacombs', false, 'defeat'), // act1-death
+    ]);
+    expect(s.biomeBins).toEqual([
+      { biomeId: 'glacial-crypt', games: 2, wins: 1, winRatePct: 50 },
+      { biomeId: 'emberworks', games: 1, wins: 1, winRatePct: 100 },
+      { biomeId: 'rotwood', games: 0, wins: 0, winRatePct: 0 },
+      { biomeId: 'sunken-catacombs', games: 0, wins: 0, winRatePct: 0 },
+    ]);
+    expect(s.act1Deaths).toBe(2);
+    // Only glacial (50%) and ember (100%) were played; the two 0-game bins never enter the spread.
+    expect(s.biomeSpreadPp).toBe(50);
+  });
+
+  it('a single played biome yields zero spread (no false outlier from unplayed bins)', () => {
+    const config: RunHarnessConfig = { bot: 'policy', games: 2, baseSeed: 42, stepCap: DEFAULT_RUN_STEP_CAP };
+    const s = summarizeRun(config, [
+      biomeResult('glacial-crypt', true, 'victory'),
+      biomeResult('glacial-crypt', true, 'defeat'),
+    ]);
+    expect(s.biomeSpreadPp).toBe(0);
+    expect(s.act1Deaths).toBe(0);
   });
 });
 

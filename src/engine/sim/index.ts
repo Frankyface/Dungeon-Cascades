@@ -92,14 +92,14 @@ export { runRunHarness } from './runHarness';
 
 // Run aggregation + reporting.
 export { summarizeRun, formatRunReport } from './runStats';
-export type { RunSummary, RunBucketBin, RunCauseBin, RunFloorBin } from './runStats';
+export type { RunSummary, RunBucketBin, RunBiomeBin, RunCauseBin, RunFloorBin } from './runStats';
 
 // Run-sim data model.
 export { DEFAULT_RUN_STEP_CAP } from './runSimTypes';
 export type { RunBotName, RunOutcome, RunDeath, RunGameResult, RunHarnessConfig } from './runSimTypes';
 
 // ── Stage 4: balance report at scale (full purity/balance matrix) ───────────────
-export { PURITY_BAND_PP, runBalanceReport, formatBalanceReport } from './balanceReport';
+export { PURITY_BAND_PP, BIOME_FAIRNESS_BAND_PP, runBalanceReport, formatBalanceReport } from './balanceReport';
 export type {
   BalanceReport,
   BalanceReportConfig,

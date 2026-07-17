@@ -16,6 +16,8 @@
  * bands are the shape of a WHOLE run, so early deaths (fewer encounters/moves) are excluded
  * from those two bands and reported separately in the all-runs and death sections.
  */
+import { ACT2_BIOME_IDS } from '../run';
+import type { BiomeId } from '../combat';
 import type { RunGameResult, RunHarnessConfig } from './runSimTypes';
 
 /** One width-10 moves bucket: runs whose total moves fell in [lo, hi]. */
@@ -23,6 +25,17 @@ export interface RunBucketBin {
   readonly lo: number;
   readonly hi: number;
   readonly count: number;
+}
+
+/**
+ * One Act-2 biome's fairness bucket: the runs that REACHED Act 2 in this biome and how many of them
+ * won. `winRatePct` is 0 when no run reached the biome (report the 0 games alongside it, not a rate).
+ */
+export interface RunBiomeBin {
+  readonly biomeId: BiomeId;
+  readonly games: number;
+  readonly wins: number;
+  readonly winRatePct: number;
 }
 
 /** Deaths attributed to one cause label (e.g. `fight:slime`, `boss`). */
@@ -65,6 +78,15 @@ export interface RunSummary {
   readonly goldMeanAll: number;
   readonly relicsMeanAll: number;
   readonly movesBinsAll: readonly RunBucketBin[];
+  // ── Act-2 biome fairness (runs that REACHED Act 2; canonical Act-2 biome order) ──
+  readonly biomeBins: readonly RunBiomeBin[];
+  /** Runs that never reached Act 2 (Act-1 defeats/wedges) — excluded from every biome bucket. */
+  readonly act1Deaths: number;
+  /**
+   * The fairness metric: max win% − min win% across the biomes that had ≥1 reached-Act-2 run, in
+   * percentage points (0 when fewer than two biomes were played). The per-biome gate is spread ≤10pp.
+   */
+  readonly biomeSpreadPp: number;
   // ── Deaths (defeats only) ──
   readonly deathsByCause: readonly RunCauseBin[];
   readonly deathsByFloor: readonly RunFloorBin[];
@@ -124,11 +146,25 @@ export function summarizeRun(config: RunHarnessConfig, results: readonly RunGame
   let maxDeathFloor = 0;
   let anyDeath = false;
 
+  // Act-2 biome fairness: bucket each run that REACHED Act 2 by its biome; the rest are Act-1 deaths.
+  const biomeGames = new Map<BiomeId, number>();
+  const biomeWins = new Map<BiomeId, number>();
+  let act1Deaths = 0;
+
   for (const r of results) {
     allMoves.push(r.moves);
     allGoldTotal += r.gold;
     allRelicsTotal += r.relics;
     if (r.bossReached) bossReachedCount++;
+
+    // A run counts toward a biome bucket only if it actually reached Act 2 (its biome is otherwise
+    // recorded but never played). Runs that never reached Act 2 fall into the act1-deaths tally.
+    if (r.reachedAct2 === true && r.act2BiomeId !== undefined) {
+      biomeGames.set(r.act2BiomeId, (biomeGames.get(r.act2BiomeId) ?? 0) + 1);
+      if (r.outcome === 'victory') biomeWins.set(r.act2BiomeId, (biomeWins.get(r.act2BiomeId) ?? 0) + 1);
+    } else {
+      act1Deaths++;
+    }
 
     if (r.outcome === 'victory') {
       victories++;
@@ -166,6 +202,21 @@ export function summarizeRun(config: RunHarnessConfig, results: readonly RunGame
     }
   }
 
+  // One bin per Act-2 biome in canonical order (stdout-stable); spread is measured only over the
+  // biomes that were actually reached, so an unplayed biome never masquerades as a 0% outlier.
+  const biomeBins: RunBiomeBin[] = ACT2_BIOME_IDS.map((biomeId) => {
+    const biomeGamesCount = biomeGames.get(biomeId) ?? 0;
+    const biomeWinsCount = biomeWins.get(biomeId) ?? 0;
+    return {
+      biomeId,
+      games: biomeGamesCount,
+      wins: biomeWinsCount,
+      winRatePct: biomeGamesCount === 0 ? 0 : (biomeWinsCount / biomeGamesCount) * 100,
+    };
+  });
+  const playedRates = biomeBins.filter((b) => b.games > 0).map((b) => b.winRatePct);
+  const biomeSpreadPp = playedRates.length < 2 ? 0 : maxOf(playedRates) - minOf(playedRates);
+
   const games = config.games;
   return {
     config,
@@ -192,6 +243,9 @@ export function summarizeRun(config: RunHarnessConfig, results: readonly RunGame
     goldMeanAll: mean(allGoldTotal, games),
     relicsMeanAll: mean(allRelicsTotal, games),
     movesBinsAll: bucketByTen(allMoves),
+    biomeBins,
+    act1Deaths,
+    biomeSpreadPp,
     deathsByCause,
     deathsByFloor,
   };
@@ -202,6 +256,8 @@ export function summarizeRun(config: RunHarnessConfig, results: readonly RunGame
 const PCT_PRECISION = 1;
 const MEAN_PRECISION = 2;
 const MEDIAN_PRECISION = 1;
+/** Column width for a biome id label (`sunken-catacombs` is the longest at 16). */
+const BIOME_NAME_WIDTH = 16;
 
 function pct(count: number, total: number): string {
   const value = total === 0 ? 0 : (count / total) * 100;
@@ -233,6 +289,14 @@ export function formatRunReport(summary: RunSummary): string {
           return `  ${range} moves: ${b.count} (${pct(b.count, summary.games)}%)`;
         });
 
+  const biomeLines = summary.biomeBins.map((b) => {
+    const name = b.biomeId.padEnd(BIOME_NAME_WIDTH, ' ');
+    const n = String(b.games).padStart(4, ' ');
+    const wins = String(b.wins).padStart(4, ' ');
+    const wr = b.games === 0 ? '   —' : b.winRatePct.toFixed(PCT_PRECISION);
+    return `  ${name} n ${n}  wins ${wins}  win% ${wr}`;
+  });
+
   const lines: string[] = [
     'Dungeon Cascades — Full-Run Sim Report',
     '======================================',
@@ -261,6 +325,11 @@ export function formatRunReport(summary: RunSummary): string {
     `  Moves/run:        min ${summary.movesMinAll}  median ${summary.movesMedianAll.toFixed(MEDIAN_PRECISION)}  max ${summary.movesMaxAll}`,
     `  Gold earned mean: ${summary.goldMeanAll.toFixed(MEAN_PRECISION)}`,
     `  Relics mean:      ${summary.relicsMeanAll.toFixed(MEAN_PRECISION)}`,
+    '',
+    'Act-2 biome fairness (reached-Act-2 runs):',
+    ...biomeLines,
+    `  act1-deaths: ${summary.act1Deaths}`,
+    `  max spread:  ${summary.biomeSpreadPp.toFixed(PCT_PRECISION)}pp`,
     '',
     'Moves-per-run distribution (all runs):',
     ...movesBinLines,

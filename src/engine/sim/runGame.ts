@@ -100,5 +100,10 @@ export function playRun(seed: number, bot: RunBotName, stepCap: number, variantI
     goldEarned,
     goldSpent,
     score: outcome === 'wedged' ? 0 : scoreForRun(state),
+    // Biome fairness telemetry, both read straight off the terminal RunState (never re-derived): the
+    // seeded Act-2 biome, and whether the run actually reached Act 2 (`act` is monotonic 1→2, so the
+    // terminal act tells us). An Act-1 death still carries its biome but has `reachedAct2 === false`.
+    act2BiomeId: state.act2BiomeId,
+    reachedAct2: state.act === 2,
   };
 }

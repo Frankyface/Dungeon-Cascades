@@ -23,6 +23,12 @@ import type { RunBotName, RunGameResult, RunHarnessConfig } from './runSimTypes'
 /** The purity band (percentage points): a variant's win rate must be within ±this of vanilla. */
 export const PURITY_BAND_PP = 5;
 
+/**
+ * The fairness band (percentage points): the vanilla Act-2 per-biome win-rate spread must be ≤ this.
+ * This is the hard per-biome gate — no Act-2 biome should be materially harder or easier than another.
+ */
+export const BIOME_FAIRNESS_BAND_PP = 10;
+
 /** Configuration of a balance-report run (drives vanilla + every listed variant). */
 export interface BalanceReportConfig {
   readonly bot: RunBotName;
@@ -209,6 +215,8 @@ function signedPp(value: number): string {
 export function formatBalanceReport(report: BalanceReport): string {
   const lines: string[] = [];
   const overallPass = report.rows.every((r) => r.withinBand);
+  const vanillaRow = report.rows[0];
+  const vs = vanillaRow.summary;
 
   lines.push('Dungeon Cascades — Balance Report (full matrix)');
   lines.push('===============================================');
@@ -234,6 +242,23 @@ export function formatBalanceReport(report: BalanceReport): string {
   }
   lines.push('');
   lines.push(`Purity verdict:   ${overallPass ? 'ALL PASS' : 'FAIL — a variant is out of band'}`);
+  lines.push('');
+
+  // ── Act-2 biome fairness gate (vanilla per-biome win rates; the ≤10pp spread gate) ──
+  const fairnessPass = vs.biomeSpreadPp <= BIOME_FAIRNESS_BAND_PP;
+  lines.push(`Biome fairness gate (vanilla Act-2 win% by biome, ≤${fixed(BIOME_FAIRNESS_BAND_PP, 1)}pp spread):`);
+  lines.push(`  ${padEndTo('biome', 16)} ${padStartTo('n', 5)} ${padStartTo('wins', 5)}  ${padStartTo('win%', 6)}`);
+  for (const b of vs.biomeBins) {
+    lines.push(
+      `  ${padEndTo(b.biomeId, 16)} ${padStartTo(String(b.games), 5)} ${padStartTo(String(b.wins), 5)}  ${padStartTo(
+        b.games === 0 ? '—' : fixed(b.winRatePct, 1),
+        6,
+      )}`,
+    );
+  }
+  lines.push(`  ${padEndTo('act1-deaths', 16)} ${padStartTo(String(vs.act1Deaths), 5)}`);
+  lines.push(`  Max spread:       ${fixed(vs.biomeSpreadPp, 1)}pp`);
+  lines.push(`Fairness verdict: ${fairnessPass ? 'PASS' : 'FAIL'} (spread ${fixed(vs.biomeSpreadPp, 1)}pp ${fairnessPass ? '≤' : '>'} ${fixed(BIOME_FAIRNESS_BAND_PP, 1)}pp)`);
   lines.push('');
 
   // ── Per-config stat matrix ──
@@ -262,8 +287,6 @@ export function formatBalanceReport(report: BalanceReport): string {
   lines.push('');
 
   // ── Vanilla deaths by cause ──
-  const vanillaRow = report.rows[0];
-  const vs = vanillaRow.summary;
   lines.push('Vanilla deaths by cause:');
   if (vs.deathsByCause.length === 0) {
     lines.push('  (no deaths)');
