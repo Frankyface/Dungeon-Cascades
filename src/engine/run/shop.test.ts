@@ -46,11 +46,11 @@ describe('generateShop — seeded stock', () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 
-  it('prices relics by tier (normal 45 / elite 70)', () => {
+  it('prices relics by tier (common 45 / epic 70)', () => {
     const { shop } = generateShop([], createRng(3));
     for (const item of shop.items) {
-      if (item.kind === 'relic' && item.tier === 'elite') expect(item.price).toBe(SHOP_PRICE_ELITE);
-      if (item.kind === 'relic' && item.tier === 'normal') expect(item.price).toBe(SHOP_PRICE_NORMAL);
+      if (item.kind === 'relic' && item.tier === 'epic') expect(item.price).toBe(SHOP_PRICE_ELITE);
+      if (item.kind === 'relic' && item.tier === 'common') expect(item.price).toBe(SHOP_PRICE_NORMAL);
     }
   });
 });

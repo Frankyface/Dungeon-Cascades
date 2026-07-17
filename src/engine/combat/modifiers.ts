@@ -29,9 +29,16 @@ import type { TileColor } from './types';
  * - `healGroup`: same, for one cleared heal group (no color — heal is colorless).
  * - `incomingAttack`: transform an enemy ATTACK action's damage value before it hits the
  *   player (defensive relics). Applied only to `type: 'attack'` actions in `playTurn`.
+ * - `cascadeWave` (Stage-6, wave 1b): given a move's cascade-wave COUNT, return the per-wave
+ *   relic effects — direct enemy HP loss (`enemyDamage`, affinity-ignoring) and player heal
+ *   (`playerHeal`, capped at max HP by `playTurn`). Both are pre-rounded, ≥0 totals summed over
+ *   waves 2..N by the run layer. The gold channel of `onCascadeWave` is a run-layer concern
+ *   (banked at combat resolution) and is intentionally NOT part of this combat seam. Applied only
+ *   when supplied — omitted ⇒ byte-identical Stage-2 combat (mirrors the other transforms).
  */
 export interface CombatModifiers {
   readonly damageGroup?: (baseAmount: number, color: TileColor, size: number, totalCombos: number) => number;
   readonly healGroup?: (baseAmount: number, size: number, totalCombos: number) => number;
   readonly incomingAttack?: (value: number) => number;
+  readonly cascadeWave?: (waveCount: number) => { readonly enemyDamage: number; readonly playerHeal: number };
 }

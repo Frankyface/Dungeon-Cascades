@@ -9,7 +9,7 @@
  */
 import { nextFloat, nextInt } from '../board';
 import type { RngState } from '../board';
-import { RELIC_IDS, RELIC_REGISTRY, getRelic } from './relics';
+import { RELIC_IDS, RELIC_REGISTRY, UNLOCKED_BY_DEFAULT_IDS, getRelic } from './relics';
 import type { RelicRegistry, RelicTier } from './relicTypes';
 import {
   SHOP_HEAL_AMOUNT,
@@ -50,25 +50,37 @@ export interface ShopGenResult {
   readonly rngState: RngState;
 }
 
-/** Relic price for a tier (config). */
+/**
+ * Relic price for a tier (config). `common` = the base price; `epic` and `legendary` = the
+ * higher price. (Migration mechanical: the legacy `tier === 'elite'` check becomes "non-common".
+ * The default shop pool is base-12 only, so `legendary` never actually prices here until wave 2.)
+ */
 function priceForTier(tier: RelicTier): number {
-  return tier === 'elite' ? SHOP_PRICE_ELITE : SHOP_PRICE_NORMAL;
+  return tier === 'common' ? SHOP_PRICE_NORMAL : SHOP_PRICE_ELITE;
 }
 
 /**
  * Generate a shop: roll a stock size in [SHOP_RELIC_MIN, SHOP_RELIC_MAX], sample that many
- * DISTINCT unowned relics (uniform, without replacement, canonical order for determinism),
- * then append the heal item. If the unowned pool is smaller than the rolled size it stocks
- * what remains (graceful degradation — the heal item is always present, so leaving/buying
- * heal stays possible). Threads `rngState`; deterministic.
+ * DISTINCT unowned+UNLOCKED relics (uniform, without replacement, canonical order for determinism),
+ * then append the heal item. If the pool is smaller than the rolled size it stocks what remains
+ * (graceful degradation — the heal item is always present, so leaving/buying heal stays possible).
+ * Threads `rngState`; deterministic.
+ *
+ * `unlockedIds` (Stage-6 pool seam) filters the stock to the meta-unlocked relics; it defaults to
+ * `UNLOCKED_BY_DEFAULT_IDS` (the base 12), so a run that passes nothing sees exactly the pre-wave
+ * stock (byte-identical) and every locked expansion relic is excluded. Wave 2 threads meta state in.
  */
 export function generateShop(
   ownedRelicIds: readonly string[],
   rngState: RngState,
+  unlockedIds: readonly string[] = UNLOCKED_BY_DEFAULT_IDS,
   registry: RelicRegistry = RELIC_REGISTRY,
 ): ShopGenResult {
   const owned = new Set(ownedRelicIds);
-  const pool = (registry === RELIC_REGISTRY ? RELIC_IDS : Object.keys(registry)).filter((id) => !owned.has(id));
+  const unlocked = new Set(unlockedIds);
+  const pool = (registry === RELIC_REGISTRY ? RELIC_IDS : Object.keys(registry)).filter(
+    (id) => !owned.has(id) && unlocked.has(id),
+  );
 
   // Roll the stock size, then clamp to the available pool.
   const span = SHOP_RELIC_MAX - SHOP_RELIC_MIN + 1;

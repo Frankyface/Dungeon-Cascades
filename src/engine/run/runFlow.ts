@@ -217,7 +217,7 @@ export function playEncounterTurn(state: RunState, path: Path, options: RunOptio
     const { options: opts } = draftOptions(
       state.relicIds,
       createRng(draftSeedFor(state.seed, nodeSeedKey(node.floor, node.index))),
-      isElite ? 'elite' : 'normal',
+      isElite ? 'epic' : 'common', // migration-mechanical: relic tiers normal→common, elite→epic
     );
     const phaseNext: RunState['phase'] = opts.length === 0 ? { kind: 'awaiting_move' } : { kind: 'draft', options: opts };
     return { state: { ...won, phase: phaseNext }, resolution };

@@ -36,18 +36,40 @@ export {
 export { deriveSeed, mapSeedFor, draftSeedFor, RUN_TAG_MAP, RUN_TAG_DRAFT } from './runSeeds';
 
 // ── Relics: data model + roster ──────────────────────────────────────────────
-export type { HookName, RelicTier, RelicModifier, Relic, RelicContext, RelicRegistry } from './relicTypes';
-export { HOOK_NAMES } from './relicTypes';
-export { ROSTER, RELIC_REGISTRY, RELIC_IDS, getRelic, assertRosterWellFormed } from './relics';
+export type { HookName, ModifierKind, RelicTier, RelicModifier, Relic, RelicContext, RelicRegistry } from './relicTypes';
+export { HOOK_NAMES, MODIFIER_KINDS } from './relicTypes';
+export {
+  ROSTER,
+  RELIC_REGISTRY,
+  RELIC_IDS,
+  UNLOCKED_BY_DEFAULT_IDS,
+  getRelic,
+  assertRelicWellFormed,
+  assertRosterWellFormed,
+} from './relics';
 
 // ── Relics: hook engine + combat integration ─────────────────────────────────
 export {
   applyRelicHooks,
+  applyCascadeWaveHooks,
   buildCombatModifiers,
   combatStartEnemyChip,
   combatStartPlayerHeal,
   turnStartRegen,
   applyGoldRelics,
+  cascadeWaveEnemyDamage,
+  cascadeWavePlayerHeal,
+  cascadeWaveGold,
+  enemyDefeatedGold,
+  enemyDefeatedPlayerHeal,
+  actStartGold,
+  actStartPlayerHeal,
+  restUsedGold,
+  restUsedPlayerHeal,
+  restHealAmount,
+  shopPurchaseGold,
+  shopPurchasePlayerHeal,
+  shopPrice,
   startEncounterWithRelics,
   playTurnWithRelics,
 } from './relicHooks';

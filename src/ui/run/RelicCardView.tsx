@@ -5,7 +5,11 @@
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RelicCard } from './relicPresentation';
+import type { RelicTier } from '../../engine/run';
 import { RUN_COLORS } from './runColors';
+
+/** Migration-mechanical: display label per rarity tier (normal→common, elite→epic, + legendary). */
+const TIER_LABEL: Readonly<Record<RelicTier, string>> = { common: 'Common', epic: 'Epic', legendary: 'Legendary' };
 
 interface RelicCardViewProps {
   readonly card: RelicCard;
@@ -25,8 +29,8 @@ export function RelicCardView({ card, onPress, trailing, disabled, compact }: Re
       <View style={styles.headerRow}>
         <Text style={styles.name}>{card.name}</Text>
         <View style={styles.headerRight}>
-          <View style={[styles.tierBadge, card.tier === 'elite' && styles.tierElite]}>
-            <Text style={styles.tierText}>{card.tier === 'elite' ? 'Elite' : 'Common'}</Text>
+          <View style={[styles.tierBadge, card.tier !== 'common' && styles.tierElite]}>
+            <Text style={styles.tierText}>{TIER_LABEL[card.tier]}</Text>
           </View>
           {trailing !== undefined ? <Text style={styles.trailing}>{trailing}</Text> : null}
         </View>

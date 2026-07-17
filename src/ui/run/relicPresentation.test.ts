@@ -26,7 +26,7 @@ describe('relicCard / relicCards', () => {
   it('carries the relic identity, flavor and tier', () => {
     const card = relicCard('cascade-sigil');
     expect(card.name).toBe('Cascade Sigil');
-    expect(card.tier).toBe('elite');
+    expect(card.tier).toBe('epic');
     expect(card.flavor.length).toBeGreaterThan(0);
   });
 

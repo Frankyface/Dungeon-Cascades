@@ -210,20 +210,28 @@ export function playTurn(
   const groups = flattenGroups(move.waves);
   const effects = computeEffects(groups, enemy.affinity, config, modifiers);
 
+  // Stage-6 cascade-wave relics (wave 1b seam): per-wave direct enemy damage + player heal,
+  // summed over waves 2..N of THIS move. Absent modifier ⇒ 0 ⇒ byte-identical Stage-2 combat.
+  const cascade = modifiers?.cascadeWave?.(move.waves.length);
+  const cascadeEnemyDamage = cascade?.enemyDamage ?? 0;
+  const cascadePlayerHeal = cascade?.playerHeal ?? 0;
+
   // Curse (Sunken Catacombs) halves the rolled move heal while active — read the INCOMING
-  // curse (before the enemy may re-curse this turn). Rounded once (round-half-up).
+  // curse (before the enemy may re-curse this turn). Rounded once (round-half-up). Cascade-wave
+  // heal is a SEPARATE relic channel (not the P-group move heal), so curse does not halve it.
   const effectiveHeal = curse0 > 0 ? Math.round(effects.heal * 0.5) : effects.heal;
-  const playerHpAfterMove = Math.min(state.playerMaxHp, playerHpAfterRot + effectiveHeal);
+  const playerHpAfterMove = Math.min(state.playerMaxHp, playerHpAfterRot + effectiveHeal + cascadePlayerHeal);
 
   // Outgoing damage: affinity + cascade are ALREADY baked into `effects.damage`; mitigation
   // applies AFTER (so affinity comes BEFORE shield/armor). Order: Emberworks armor (one-shot
   // dampener) then Glacial shield (persistent absorb); the remainder carries through to HP.
+  // Cascade-wave enemy damage is DIRECT, affinity-ignoring HP loss dealt alongside the move.
   const afterArmor = Math.max(0, effects.damage - armor0);
   const armorAfter = 0; // one-shot: cleared by the strike it dampened
   const shieldAbsorbed = Math.min(shield0, afterArmor);
   const shieldAfterMove = shield0 - shieldAbsorbed;
   const dmgToEnemy = afterArmor - shieldAbsorbed;
-  const enemyHpAfterMove = Math.max(0, state.enemyHp - dmgToEnemy);
+  const enemyHpAfterMove = Math.max(0, state.enemyHp - dmgToEnemy - cascadeEnemyDamage);
 
   // 3. WIN check — a dead enemy never acts.
   if (enemyHpAfterMove <= 0) {

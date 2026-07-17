@@ -12,9 +12,9 @@ function relicsWithHook(hook: HookName): Relic[] {
 }
 
 describe('relic roster — size & identity', () => {
-  it('has 12 relics with unique ids and matching registry / id list', () => {
-    expect(ROSTER).toHaveLength(12);
-    expect(new Set(RELIC_IDS).size).toBe(12);
+  it('has 88 relics with unique ids and matching registry / id list', () => {
+    expect(ROSTER).toHaveLength(88); // migration: 12 base + 76 Stage-6 expansion relics
+    expect(new Set(RELIC_IDS).size).toBe(88);
     expect(RELIC_IDS).toEqual(ROSTER.map((r) => r.id));
     expect(Object.keys(RELIC_REGISTRY).sort()).toEqual([...RELIC_IDS].sort());
   });
@@ -23,15 +23,15 @@ describe('relic roster — size & identity', () => {
     for (const r of ROSTER) {
       expect(r.name.length).toBeGreaterThan(0);
       expect(r.flavor.length).toBeGreaterThan(0);
-      expect(['normal', 'elite']).toContain(r.tier);
+      expect(['common', 'epic', 'legendary']).toContain(r.tier);
       expect(Object.keys(r.hooks).length).toBeGreaterThan(0);
     }
   });
 
   it('is well-formed (only known hooks) and spans both tiers', () => {
     expect(() => assertRosterWellFormed()).not.toThrow();
-    expect(ROSTER.some((r) => r.tier === 'normal')).toBe(true);
-    expect(ROSTER.some((r) => r.tier === 'elite')).toBe(true);
+    expect(ROSTER.some((r) => r.tier === 'common')).toBe(true);
+    expect(ROSTER.some((r) => r.tier === 'epic')).toBe(true);
   });
 });
 
@@ -86,7 +86,7 @@ describe('getRelic', () => {
 describe('assertRosterWellFormed', () => {
   it('throws when a relic references an unknown hook', () => {
     const bad: Relic[] = [
-      { id: 'x', name: 'X', flavor: '.', tier: 'normal', hooks: { onBogusHook: { op: 'add', amount: 1 } } as never },
+      { id: 'x', name: 'X', flavor: '.', tier: 'common', hooks: { onBogusHook: { op: 'add', amount: 1 } } as never },
     ];
     expect(() => assertRosterWellFormed(bad)).toThrow();
   });

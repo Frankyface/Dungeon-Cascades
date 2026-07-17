@@ -18,8 +18,8 @@ describe('run barrel — public API surface', () => {
     expect(typeof run.buildCombatModifiers).toBe('function');
     expect(typeof run.draftOptions).toBe('function');
     expect(typeof run.startEncounterWithRelics).toBe('function');
-    expect(run.ROSTER).toHaveLength(12);
-    expect(run.RELIC_IDS).toHaveLength(12);
+    expect(run.ROSTER).toHaveLength(88); // migration: 12 base + 76 expansion
+    expect(run.RELIC_IDS).toHaveLength(88);
     expect(run.DEFAULT_MAP_CONFIG.floorPlan.length).toBeGreaterThan(0);
     expect(run.DRAFT_OPTION_COUNT).toBe(3);
   });
@@ -32,7 +32,7 @@ describe('run barrel — public API surface', () => {
     }
     expect(run.currentNode(map, state).type).toBe('boss');
 
-    const { options } = run.draftOptions([], createRng(run.draftSeedFor(2026, 0)), 'elite');
+    const { options } = run.draftOptions([], createRng(run.draftSeedFor(2026, 0)), 'epic');
     expect(options.length).toBeGreaterThan(0);
     const owned = run.applyDraft([], options[0]);
     expect(owned).toEqual([options[0]]);
@@ -56,7 +56,7 @@ describe('run barrel — public API surface', () => {
     expect(run.deriveSeed(1, run.RUN_TAG_MAP)).toBe(run.mapSeedFor(1));
     expect(typeof run.draftSeedFor(1, 0)).toBe('number');
     // Relic registry + roster helpers.
-    expect(run.getRelic('emberfang').tier).toBe('normal');
+    expect(run.getRelic('emberfang').tier).toBe('common');
     expect(() => run.assertRosterWellFormed()).not.toThrow();
     // Relic hook helpers.
     expect(typeof run.buildCombatModifiers(['emberfang']).damageGroup).toBe('function');

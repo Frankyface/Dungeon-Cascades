@@ -46,16 +46,16 @@ describe('intentStepLabel / scriptCycleText', () => {
   });
 });
 
-describe('compendiumRelics — all 12, from relicPresentation', () => {
+describe('compendiumRelics — all 88, from relicPresentation', () => {
   it('covers the whole roster in canonical order', () => {
     const cards = compendiumRelics();
-    expect(cards).toHaveLength(12);
+    expect(cards).toHaveLength(88); // migration: 12 base + 76 expansion
     expect(cards.map((c) => c.id)).toEqual([...RELIC_IDS]);
   });
 
   it('carries the derived effect text and tier badge for a relic', () => {
     const card = compendiumRelics().find((c) => c.id === 'cascade-sigil');
-    expect(card?.tier).toBe('elite');
+    expect(card?.tier).toBe('epic');
     expect(card?.effect).toBe('+6% damage per extra combo');
   });
 

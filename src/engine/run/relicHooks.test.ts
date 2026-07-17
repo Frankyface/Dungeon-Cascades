@@ -23,7 +23,7 @@ const SYNTH: RelicRegistry = {
   mulD: relic('mulD', { onDamageComputed: { op: 'mul', amount: 1.0 } }), // ×2.0
 };
 function relic(id: string, hooks: Relic['hooks']): Relic {
-  return { id, name: id, flavor: '.', tier: 'normal', hooks };
+  return { id, name: id, flavor: '.', tier: 'common', hooks };
 }
 
 describe('applyRelicHooks — composition law (synthetic)', () => {

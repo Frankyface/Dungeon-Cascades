@@ -56,7 +56,28 @@ function describeHook(hook: HookName, mod: RelicModifier): string {
     case 'onGoldEarned':
       return mod.op === 'mul' ? `+${pct(mod.amount)} gold` : `+${mod.amount} gold`;
     case 'onIncomingDamage':
-      return `Reduce incoming damage by ${Math.abs(mod.amount)}`;
+      return mod.op === 'mul'
+        ? `Reduce incoming damage by ${pct(Math.abs(mod.amount))}`
+        : `Reduce incoming damage by ${Math.abs(mod.amount)}`;
+    // ── Stage-6 hooks ──
+    case 'onCascadeWave': {
+      const per = mod.kind === 'enemyDamage' ? 'enemy damage' : mod.kind === 'playerHeal' ? 'HP' : 'gold';
+      return `+${mod.amount} ${per} per cascade wave`;
+    }
+    case 'onEnemyDefeated':
+      return mod.kind === 'gold' ? `+${mod.amount} gold per kill` : `+${mod.amount} HP per kill`;
+    case 'onActStart':
+      return mod.kind === 'gold' ? `+${mod.amount} gold each act` : `+${mod.amount} HP each act`;
+    case 'onRestUsed':
+      if (mod.kind === 'restHeal') {
+        return mod.amount >= 0 ? `Rest heals +${pct(mod.amount)}` : `Rest heals nothing`;
+      }
+      return mod.kind === 'gold' ? `+${mod.amount} gold on rest` : `+${mod.amount} HP on rest`;
+    case 'onShopPurchase':
+      if (mod.kind === 'price') {
+        return `${pct(mod.amount)} shop prices`;
+      }
+      return mod.kind === 'gold' ? `+${mod.amount} gold per purchase` : `+${mod.amount} HP per purchase`;
   }
 }
 

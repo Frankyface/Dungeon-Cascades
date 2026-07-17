@@ -8,7 +8,7 @@
  */
 import { nextFloat } from '../board';
 import type { RngState } from '../board';
-import { RELIC_IDS, RELIC_REGISTRY, getRelic } from './relics';
+import { RELIC_IDS, RELIC_REGISTRY, UNLOCKED_BY_DEFAULT_IDS, getRelic } from './relics';
 import type { RelicRegistry, RelicTier } from './relicTypes';
 
 /** How many relics a draft offers. */
@@ -31,21 +31,30 @@ function weightFor(relicTier: RelicTier, draftTier: RelicTier): number {
 }
 
 /**
- * Offer a draft. Draws up to `DRAFT_OPTION_COUNT` DISTINCT relics from the unowned pool by
- * weighted sampling without replacement, threading `rngState`. Returns fewer than three
- * options only when the unowned pool is smaller than three (graceful exhaustion — the
- * documented fallback), and an empty list when nothing is left to offer. Never offers an
- * owned relic and never repeats one within a draft.
+ * Offer a draft. Draws up to `DRAFT_OPTION_COUNT` DISTINCT relics from the unowned+UNLOCKED pool
+ * by weighted sampling without replacement, threading `rngState`. Returns fewer than three
+ * options only when the pool is smaller than three (graceful exhaustion — the documented
+ * fallback), and an empty list when nothing is left to offer. Never offers an owned or LOCKED
+ * relic and never repeats one within a draft.
+ *
+ * `unlockedIds` (Stage-6 pool seam) filters the pool to the meta-unlocked relics; it defaults to
+ * `UNLOCKED_BY_DEFAULT_IDS` (the base 12), so a run that passes nothing sees exactly the pre-wave
+ * pool (byte-identical) and every locked expansion relic is excluded. Wave 2 threads real meta
+ * state in.
  */
 export function draftOptions(
   ownedRelicIds: readonly string[],
   rngState: RngState,
   tier: RelicTier,
+  unlockedIds: readonly string[] = UNLOCKED_BY_DEFAULT_IDS,
   registry: RelicRegistry = RELIC_REGISTRY,
 ): DraftResult {
   const owned = new Set(ownedRelicIds);
-  // Pool in canonical roster order (deterministic), unowned only.
-  const ids = (registry === RELIC_REGISTRY ? RELIC_IDS : Object.keys(registry)).filter((id) => !owned.has(id));
+  const unlocked = new Set(unlockedIds);
+  // Pool in canonical roster order (deterministic): unowned AND unlocked only.
+  const ids = (registry === RELIC_REGISTRY ? RELIC_IDS : Object.keys(registry)).filter(
+    (id) => !owned.has(id) && unlocked.has(id),
+  );
 
   const pool: string[] = [...ids];
   const weights = pool.map((id) => weightFor(getRelic(id, registry).tier, tier));
