@@ -11,12 +11,12 @@
  */
 
 /**
- * The six node types (docs/decisions.md "Stage 3 structural defaults"). `fight` and
- * `elite` are ENCOUNTERS (they run a combat); `event`/`shop`/`rest` are utility stops;
- * `boss` is the single terminal node. The taxonomy is closed for v1 — a future verb is
- * added by extending this union and the generator's role table.
+ * The node types. `fight` and `elite` are ENCOUNTERS (they run a combat); `event`/`shop`/`rest`/
+ * `altar` are utility stops; `boss` is the single terminal node. `altar` (Stage-6 wave 2, spec §2c)
+ * appears in only SOME maps, on a middle floor, and offers the run-sacrifice-for-an-unlock choice.
+ * The taxonomy is extended by adding to this union and the generator's placement logic.
  */
-export type NodeType = 'fight' | 'elite' | 'event' | 'shop' | 'rest' | 'boss';
+export type NodeType = 'fight' | 'elite' | 'event' | 'shop' | 'rest' | 'altar' | 'boss';
 
 /**
  * One node in the layered DAG. `id` is a stable, human-readable coordinate string

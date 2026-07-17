@@ -8,6 +8,7 @@
 import { createRng } from '../board';
 import { draftOptions } from './draft';
 import { generateShop } from './shop';
+import { startRun, enterNode } from './runFlow';
 import { RELIC_IDS, UNLOCKED_BY_DEFAULT_IDS } from './relics';
 
 const LOCKED_IDS = RELIC_IDS.filter((id) => !UNLOCKED_BY_DEFAULT_IDS.includes(id));
@@ -62,5 +63,39 @@ describe('pool seam — explicit unlockedIds admits a specific locked relic', ()
       expect(id).toBe('bloodstone-altar');
     }
     expect(shop.items.some((i) => i.kind === 'heal')).toBe(true);
+  });
+});
+
+describe('pool seam LIVE — the RunState snapshot flows through startRun → enterNode (wave 2)', () => {
+  it('a run whose snapshot admits an expansion relic stocks it in the shop (owning the base 12)', () => {
+    const unlocked = [...UNLOCKED_BY_DEFAULT_IDS, 'bloodstone-altar'];
+    const base = startRun(9, undefined, unlocked);
+    expect(base.unlockedRelicIds).toEqual(unlocked);
+    const shopNode = base.map.nodes.find((n) => n.type === 'shop');
+    expect(shopNode).toBeDefined();
+    // Own the base 12 so the ONLY unowned+unlocked relic is the snapshot's expansion relic.
+    const atShop: typeof base = {
+      ...base,
+      relicIds: [...UNLOCKED_BY_DEFAULT_IDS],
+      mapState: { currentNodeId: shopNode!.id, visited: [shopNode!.id] },
+    };
+    const entered = enterNode(atShop);
+    if (entered.phase.kind !== 'shop') throw new Error('expected a shop phase');
+    const relicIds = entered.phase.shop.items
+      .filter((i) => i.kind === 'relic')
+      .map((i) => (i.kind === 'relic' ? i.relicId : ''));
+    for (const id of relicIds) expect(id).toBe('bloodstone-altar');
+  });
+
+  it('a run with NO snapshot stocks only base-12 relics (byte-identical default)', () => {
+    const base = startRun(9); // no snapshot ⇒ pools default to the base 12
+    expect('unlockedRelicIds' in base).toBe(false);
+    const shopNode = base.map.nodes.find((n) => n.type === 'shop')!;
+    const atShop: typeof base = { ...base, mapState: { currentNodeId: shopNode.id, visited: [shopNode.id] } };
+    const entered = enterNode(atShop);
+    if (entered.phase.kind !== 'shop') throw new Error('expected a shop phase');
+    for (const item of entered.phase.shop.items) {
+      if (item.kind === 'relic') expect(UNLOCKED_BY_DEFAULT_IDS).toContain(item.relicId);
+    }
   });
 });

@@ -17,7 +17,7 @@ import type { Board, Direction, Path } from '../board';
 import { legalNextNodes } from './mapNav';
 import { getEvent } from './events';
 import { buyShopItem } from './shop';
-import { enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, advanceAct } from './runFlow';
+import { enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, advanceAct, leaveAltar } from './runFlow';
 import type { RunOptions } from './runFlow';
 import { buyFromShop, leaveShop, chooseEventOption, restAtNode, leaveRest } from './runNodes';
 import type { RunState } from './runTypes';
@@ -167,6 +167,10 @@ export function stepRun(state: RunState, combatPath: (board: Board) => Path, opt
       return chooseEventOption(state, leaveChoiceIndex(phase.eventId));
     case 'rest':
       return phase.rest.rested ? leaveRest(state) : restAtNode(state);
+    case 'altar':
+      // The measuring-stick policies always LEAVE the altar: sacrificing ends the run, so a balance
+      // bot must never take it (it would zero the run's progress). Sacrifice is a human-only choice.
+      return leaveAltar(state);
     case 'awaiting_move':
       return advanceToNode(state, legalNextNodes(state.map, state.mapState)[0]);
     case 'act_transition':

@@ -152,11 +152,16 @@ describe('boss scaling — curse is NON-scaling (turn count); other verbs scale 
     expect(scaled.script[2]).toEqual({ type: 'heal', value: 12 }); // round(10 × 1.15) = 12
   });
 
-  it('Rimeheart frostArmor and Rotmother spore DO scale by atkMult', () => {
+  it('Rimeheart frostArmor DOES scale by atkMult; Rotmother spore does NOT (R1: spore never scales)', () => {
     const rime = bossEnemyForPhaseOf(RIMEHEART, 0, 231, 3.0); // atkMult = 1 + 2·0.15 = 1.3
-    expect(rime.script[0]).toEqual({ type: 'frostArmor', value: 23 }); // round(18 × 1.3) = 23
+    expect(rime.script[0]).toEqual({ type: 'frostArmor', value: 23 }); // round(18 × 1.3) = 23 (amount, scales)
+    // decisions.md 2026-07-17 R1: spore is a STACK COUNT and NEVER scales — the Rotmother's phase-3
+    // opener stays at its base value 4 at every floor (was round(4 × 1.3) = 5 before the no-scale guard).
     const rot = bossEnemyForPhaseOf(THE_ROTMOTHER, 2, 231, 3.0);
-    expect(rot.script[0]).toEqual({ type: 'spore', value: 5 }); // round(4 × 1.3) = 5
+    expect(rot.script[0]).toEqual({ type: 'spore', value: 4 }); // UNCHANGED — stacks are stacks
+    // Its neighbouring attacks still scale (guard is spore-specific, not a phase-wide freeze).
+    expect(rot.script[1]).toEqual({ type: 'attack', value: 23 }); // round(18 × 1.3) = 23
+    expect(rot.script[3]).toEqual({ type: 'spore', value: 4 }); // the phase's closing spore also stays base
   });
 
   it('at diff 1.0 the scaled phase enemy is the exact base spec (id + biome tag carried)', () => {

@@ -6,7 +6,9 @@
 import { startRun } from './runFlow';
 import { driveRun, greedyComboPath, trivialSwapPath } from './runPolicy';
 import { nodeById } from './mapNav';
+import { actFloorOffset } from './runConfig';
 import { VARIANT_IDS } from './variants';
+import { currentRunNode } from './runTypes';
 import type { RunState } from './runTypes';
 import {
   META_VICTORY_BONUS,
@@ -52,24 +54,29 @@ describe('scoreRun — the run-score formula', () => {
   });
 });
 
-describe('runScoreInput — derived from a terminal RunState', () => {
-  it('a VICTORY counts every visited encounter plus the boss, at the boss floor', () => {
-    // Seed 7 wins the full TWO-ACT run (beats both bosses). Meta scoring reads the TERMINAL act's
-    // traversal (mapState is the Act-2 map after the transition), so the derivation is over the
-    // Act-2 path + the Act-2 boss. (Cumulative cross-act meta scoring is a later meta-wave concern.)
+describe('runScoreInput — derived from a terminal RunState (R2: cumulative across acts)', () => {
+  it('a 2-ACT VICTORY counts BOTH acts: global boss floor + prior-act + Act-2 encounters + boss', () => {
+    // Seed 7 wins the full TWO-ACT run (beats both bosses). R2: scoring is CUMULATIVE — floors read
+    // the GLOBAL boss floor (Act-2 boss floor + the full Act-1 span beneath it) and encounters credit
+    // the Act-1 tally banked at the transition (`priorActsEncountersWon`) plus the Act-2 path + boss.
     const state = driveRun(startRun(7), greedyComboPath).state;
     expect(state.status).toBe('victory');
     expect(state.act).toBe(2);
+    const prior = state.priorActsEncountersWon ?? 0;
+    expect(prior).toBeGreaterThan(0); // Act 1 (its fights/elites + the Act-1 boss) was banked
     const input = runScoreInput(state);
     expect(input.victory).toBe(true);
-    expect(input.floorsCleared).toBe(state.map.floorCount - 1); // the (Act-2) boss floor
-    expect(input.encountersWon).toBe(visitedEncounters(state) + 1); // + the boss
+    // Global floor = Act-2 boss floor + Act-1 depth (offset 13) = 12 + 13 = 25.
+    expect(input.floorsCleared).toBe(state.map.floorCount - 1 + actFloorOffset(state.act));
+    // Both acts: prior (Act-1 fights/elites + its boss) + Act-2 fights/elites + the Act-2 boss.
+    expect(input.encountersWon).toBe(prior + visitedEncounters(state) + 1);
     expect(scoreForRun(state)).toBe(scoreRun(input));
   });
 
   it('an immediate floor-0 DEFEAT banks nothing (died to the intro slime, no wins)', () => {
     const state = driveRun(startRun(1), trivialSwapPath).state;
     expect(state.status).toBe('defeat');
+    expect(state.act).toBe(1); // died in Act 1 — no prior acts, global floor 0
     const input = runScoreInput(state);
     expect(input.floorsCleared).toBe(0);
     expect(input.encountersWon).toBe(0);
@@ -77,25 +84,38 @@ describe('runScoreInput — derived from a terminal RunState', () => {
     expect(scoreForRun(state)).toBe(0);
   });
 
-  it('a mid-run combat DEFEAT does NOT count the encounter it died in', () => {
-    // Find a greedy defeat that died IN a fight/elite past floor 0 (a real mid-map death — NOT a
-    // boss death, where the death node is a `boss` type and so is never in the fight/elite count).
-    let dead: RunState | null = null;
-    for (let seed = 1; seed <= 60 && dead === null; seed++) {
-      const s = driveRun(startRun(seed), greedyComboPath).state;
-      const diedInType = nodeById(s.map, s.mapState.currentNodeId).type;
-      if (
-        s.status === 'defeat' &&
-        runScoreInput(s).floorsCleared > 0 &&
-        (diedInType === 'fight' || diedInType === 'elite')
-      ) {
-        dead = s;
-      }
-    }
-    expect(dead).not.toBeNull();
-    const state = dead as RunState;
+  it('a mid-run combat DEFEAT does NOT count the encounter it died in (cumulative-aware)', () => {
+    // Seed 2 dies IN an Act-1 fight/elite past floor 0 — a real mid-map death (NOT a boss death,
+    // whose node is a `boss` type and so is never in the fight/elite count). Act 1 ⇒ no prior acts.
+    const state = driveRun(startRun(2), greedyComboPath).state;
+    const diedInType = nodeById(state.map, state.mapState.currentNodeId).type;
+    expect(state.status).toBe('defeat');
+    expect(state.act).toBe(1);
+    expect(runScoreInput(state).floorsCleared).toBeGreaterThan(0);
+    expect(diedInType === 'fight' || diedInType === 'elite').toBe(true);
     // The current node is the fight it lost — counted in visitedEncounters but NOT a win.
-    expect(runScoreInput(state).encountersWon).toBe(visitedEncounters(state) - 1);
+    expect(runScoreInput(state).encountersWon).toBe(
+      (state.priorActsEncountersWon ?? 0) + visitedEncounters(state) - 1,
+    );
+  });
+
+  it('a mid-ACT-2 DEFEAT credits Act 1 cumulatively (R2 cross-act banking)', () => {
+    // Seed 5 clears Act 1, then dies in an Act-2 fight/elite. Its banked score MUST include Act 1
+    // (both its floors, via the global offset, and its encounters, via `priorActsEncountersWon`).
+    const state = driveRun(startRun(5), greedyComboPath).state;
+    const diedInType = nodeById(state.map, state.mapState.currentNodeId).type;
+    expect(state.status).toBe('defeat');
+    expect(state.act).toBe(2);
+    expect(diedInType === 'fight' || diedInType === 'elite').toBe(true);
+    const prior = state.priorActsEncountersWon ?? 0;
+    expect(prior).toBeGreaterThan(0); // Act 1's whole traversal was banked at the transition
+    const input = runScoreInput(state);
+    // Global floor is past the Act-1 span (≥ 13), proving Act-1 depth is credited.
+    expect(input.floorsCleared).toBe(currentRunNode(state).floor + actFloorOffset(2));
+    expect(input.floorsCleared).toBeGreaterThan(actFloorOffset(2)); // strictly into Act 2
+    // Encounters = Act-1 bank + (Act-2 fights/elites minus the one it died in).
+    expect(input.encountersWon).toBe(prior + visitedEncounters(state) - 1);
+    expect(scoreForRun(state)).toBe(scoreRun(input));
   });
 });
 

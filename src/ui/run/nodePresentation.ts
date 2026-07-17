@@ -14,6 +14,7 @@ export const NODE_GLYPH: Readonly<Record<NodeType, string>> = {
   event: '❓',
   shop: '🛒',
   rest: '🔥',
+  altar: '🩸',
   boss: '👑',
 };
 
@@ -24,6 +25,7 @@ export const NODE_LABEL: Readonly<Record<NodeType, string>> = {
   event: 'Event',
   shop: 'Shop',
   rest: 'Rest',
+  altar: 'Altar',
   boss: 'Boss',
 };
 

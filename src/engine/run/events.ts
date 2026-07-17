@@ -13,7 +13,7 @@
  */
 import { nextFloat, nextInt } from '../board';
 import type { RngState } from '../board';
-import { RELIC_IDS, RELIC_REGISTRY } from './relics';
+import { RELIC_IDS, RELIC_REGISTRY, UNLOCKED_BY_DEFAULT_IDS } from './relics';
 import { applyDraft } from './draft';
 import type { RelicRegistry } from './relicTypes';
 import { EVENT_MIN_HP, EVENT_RELIC_FALLBACK_GOLD } from './economyConfig';
@@ -149,14 +149,23 @@ export function eventForSeed(rngState: RngState): { eventId: string; rngState: R
   return { eventId: EVENTS[pick.value].id, rngState: pick.state };
 }
 
-/** Draw one seeded unowned relic (uniform, canonical order). `null` if the pool is empty. */
+/**
+ * Draw one seeded relic that is UNOWNED and meta-UNLOCKED (uniform, canonical order). `null` if the
+ * pool is empty. `unlockedIds` (Stage-6 wave 2 pool gating, spec §2) keeps a LOCKED relic from being
+ * granted by a random event — the same seam drafts/shops use — defaulting to the base 12 so a call
+ * without a run snapshot never leaks an expansion relic.
+ */
 function grantSeededRelic(
   rngState: RngState,
   ownedRelicIds: readonly string[],
+  unlockedIds: readonly string[],
   registry: RelicRegistry,
 ): { relicId: string | null; rngState: RngState } {
   const owned = new Set(ownedRelicIds);
-  const pool = (registry === RELIC_REGISTRY ? RELIC_IDS : Object.keys(registry)).filter((id) => !owned.has(id));
+  const unlocked = new Set(unlockedIds);
+  const pool = (registry === RELIC_REGISTRY ? RELIC_IDS : Object.keys(registry)).filter(
+    (id) => !owned.has(id) && unlocked.has(id),
+  );
   if (pool.length === 0) return { relicId: null, rngState };
   const draw = nextFloat(rngState);
   const idx = Math.min(pool.length - 1, Math.floor(draw.value * pool.length));
@@ -168,6 +177,7 @@ function effectFromOutcome(
   outcome: EventOutcome,
   rngState: RngState,
   ownedRelicIds: readonly string[],
+  unlockedIds: readonly string[],
   registry: RelicRegistry,
 ): { effect: EventEffect; rngState: RngState } {
   let goldDelta = outcome.goldDelta ?? 0;
@@ -176,7 +186,7 @@ function effectFromOutcome(
   let state = rngState;
 
   if (outcome.grantRelic) {
-    const grant = grantSeededRelic(state, ownedRelicIds, registry);
+    const grant = grantSeededRelic(state, ownedRelicIds, unlockedIds, registry);
     state = grant.rngState;
     grantedRelicId = grant.relicId;
     if (grantedRelicId === null) goldDelta += EVENT_RELIC_FALLBACK_GOLD; // pool empty ⇒ gold instead
@@ -196,6 +206,7 @@ export function resolveEventChoice(
   choiceIndex: number,
   rngState: RngState,
   ownedRelicIds: readonly string[],
+  unlockedIds: readonly string[] = UNLOCKED_BY_DEFAULT_IDS,
   registry: RelicRegistry = RELIC_REGISTRY,
 ): { effect: EventEffect; rngState: RngState } {
   const event = getEvent(eventId);
@@ -208,10 +219,10 @@ export function resolveEventChoice(
     const roll = nextFloat(rngState);
     const won = roll.value < choice.gamble.chance;
     const outcome = won ? choice.gamble.onWin : choice.gamble.onLose;
-    return effectFromOutcome(outcome, roll.state, ownedRelicIds, registry);
+    return effectFromOutcome(outcome, roll.state, ownedRelicIds, unlockedIds, registry);
   }
 
-  return effectFromOutcome(choice.outcome ?? {}, rngState, ownedRelicIds, registry);
+  return effectFromOutcome(choice.outcome ?? {}, rngState, ownedRelicIds, unlockedIds, registry);
 }
 
 /** The mutable run-facing fields an event effect touches. */

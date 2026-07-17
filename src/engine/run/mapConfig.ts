@@ -43,6 +43,19 @@ export interface MapConfig {
   /** Difficulty curve: `difficultyBase + difficultyPerFloor × floor`. */
   readonly difficultyBase: number;
   readonly difficultyPerFloor: number;
+  /**
+   * Probability a generated act-map contains an ALTAR node (spec §2c: "~40% of acts"). The altar
+   * replaces ONE `fight` node on an eligible middle floor, so a path through it just skips one
+   * encounter (min encounters/path drops 9→8, still inside [8,12]). 0 disables the altar entirely.
+   */
+  readonly altarChance: number;
+  /** Earliest floor an altar may occupy (never floor 0/1 — "never on floor 0", give an on-ramp). */
+  readonly altarMinFloor: number;
+  /**
+   * How many trailing floors are altar-INELIGIBLE: the boss floor AND the pre-boss funnel ("never
+   * adjacent to the boss"). With 2, the last eligible floor is `floorCount − 1 − 2` (= 10 of 0–12).
+   */
+  readonly altarPreBossMargin: number;
 }
 
 /**
@@ -80,6 +93,11 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   eliteChance: 0.22,
   difficultyBase: 1.0,
   difficultyPerFloor: 0.15,
+  // Altar (spec §2c). ~40% of acts get an altar on a middle encounter floor in [2, floorCount−3]
+  // (= floors 2–10 of the 13-floor default). Sim-tunable; 0 disables it.
+  altarChance: 0.4,
+  altarMinFloor: 2,
+  altarPreBossMargin: 2,
 };
 
 // ── Acceptance-gate constants (the constraints the property tests assert against) ────

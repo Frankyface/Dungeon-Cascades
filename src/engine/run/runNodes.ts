@@ -88,7 +88,15 @@ export function chooseEventOption(state: RunState, choiceIndex: number): RunStat
   const phase = state.phase;
   if (phase.kind !== 'event') throw new Error('unreachable');
 
-  const { effect } = resolveEventChoice(phase.eventId, choiceIndex, phase.rngState, state.relicIds);
+  // §2 pool gating: a relic-granting event draws from the run's unlocked snapshot (absent ⇒ base-12
+  // default), so a random event never grants a LOCKED relic — the same seam drafts/shops use.
+  const { effect } = resolveEventChoice(
+    phase.eventId,
+    choiceIndex,
+    phase.rngState,
+    state.relicIds,
+    state.unlockedRelicIds,
+  );
   const applied = applyEventEffect(effect, {
     gold: state.gold,
     hp: state.playerHp,

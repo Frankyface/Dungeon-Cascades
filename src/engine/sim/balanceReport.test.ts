@@ -94,8 +94,13 @@ describe('balance report — fixed-seed pin (drift guard; games 8, seed 42)', ()
     expect(text).toContain('  vitality-pact        0.0   -12.5  FAIL');
     expect(text).toContain('  ironhide             0.0   -12.5  FAIL');
     expect(text).toContain('  glass-cannon         0.0   -12.5  FAIL');
-    expect(text).toContain('  vanilla            12.5   37.5    22.0  127.0    17.6   209.9     3.1');
-    expect(text).toContain('  ironhide            0.0   62.5     0.0    0.0    19.0   247.4     5.6');
+    // R2 (decisions.md 2026-07-17): cumulative cross-act scoring raised the `score` column
+    // (vanilla 17.6→31.5, ironhide 19.0→32.9). ALTAR (spec §2c) then re-routed the winning runs
+    // around an altar into different fights, shifting mvMed (vanilla 127→134) and the gold-earned
+    // means (vanilla 209.9→205.3, ironhide 247.4→242.9); win%, boss%, and encMed are unchanged.
+    // Re-recorded from `--mode report --games 8 --seed 42`.
+    expect(text).toContain('  vanilla            12.5   37.5    22.0  134.0    31.5   205.3     3.1');
+    expect(text).toContain('  ironhide            0.0   62.5     0.0    0.0    32.9   242.9     5.6');
     expect(text).toContain('  fight:skeleton        3 (42.9%)');
     expect(text).toContain('  bulwark-rune              7    14.3    +1.8');
     expect(text).toContain('  misers-knuckle            3    33.3   +20.8');

@@ -18,7 +18,7 @@ import type { CombatConfig, CombatState, EnemyId, Enemy, TurnResolution } from '
 import type { TileSource } from '../board';
 import { generateMap, difficultyAt } from './mapGen';
 import { createMapState, currentNode, moveTo } from './mapNav';
-import { mapSeedFor, mapSeedForAct, act2BiomeSeedFor, nodeSeedKey, enemySeedFor, encounterSeedFor, shopSeedFor, eventSeedFor, draftSeedFor } from './runSeeds';
+import { mapSeedFor, mapSeedForAct, act2BiomeSeedFor, nodeSeedKey, enemySeedFor, encounterSeedFor, shopSeedFor, eventSeedFor, draftSeedFor, altarSeedFor } from './runSeeds';
 import { selectEnemy, scaledEnemyFor, selectBiomeEnemy, scaledBiomeEnemyFor } from './enemyScaling';
 import { bossEnemyForPhase, bossEnemyForPhaseOf, bossMaxHp, bossMaxHpFor, syncBossPhase, syncBossPhaseOf } from './boss';
 import type { BossSyncResult } from './boss';
@@ -48,7 +48,13 @@ import {
 } from './runConfig';
 import { getVariant, resolveVariantStart } from './variants';
 import type { RunVariant } from './variants';
-import { assertRunActive, assertRunPhase } from './runTypes';
+import { currentActEncountersWon, normalizeMeta } from './meta';
+import type { MetaState } from './meta';
+import { pickAltarUnlock } from './altar';
+import { applyAltarUnlock } from './unlocks';
+import type { UnlockEvent } from './unlocks';
+import { UNLOCKED_BY_DEFAULT_IDS } from './relics';
+import { assertRunActive, assertRunPhase, currentRunNode } from './runTypes';
 import type { EncounterKind, RunState, RunStatus } from './runTypes';
 import type { Path } from '../board';
 
@@ -71,8 +77,12 @@ function finalize(state: RunState, status: RunStatus): RunState {
  * reshapes ONLY the initial state via the variant's run-start modifiers (starting relics, gold,
  * max HP) and tags the run with the variant id — the rest of the run flows through the exact same
  * state machine. Throws on an unknown variant id (boundary validation).
+ *
+ * `unlockedRelicIds` is the OPTIONAL Stage-6 meta pool SNAPSHOT (the UI passes `meta.unlockedRelicIds`).
+ * It is stored verbatim on the RunState so this run's drafts/shops/event-grants filter to it; when
+ * omitted the field is absent and the pools fall back to the base 12 — a byte-identical vanilla start.
  */
-export function startRun(seed: number, variantId?: string): RunState {
+export function startRun(seed: number, variantId?: string, unlockedRelicIds?: readonly string[]): RunState {
   const map = generateMap(mapSeedFor(seed));
   // The Act-2 biome is fixed at start (a pure function of the seed on its own RNG stream, so it
   // perturbs no Act-1 content and round-trips losslessly). It is inert until the act transition.
@@ -91,6 +101,8 @@ export function startRun(seed: number, variantId?: string): RunState {
     act2BiomeId,
     phase: { kind: 'awaiting_node' },
     status: 'active',
+    // Snapshot the unlocked pool ONLY when supplied, so a snapshot-less start stays byte-identical.
+    ...(unlockedRelicIds === undefined ? {} : { unlockedRelicIds }),
   };
   if (variantId === undefined) return base;
   return applyVariantStart(base, getVariant(variantId));
@@ -130,9 +142,16 @@ function enterCombat(
     startingPlayerHp: state.playerHp,
     enemy: enemyDef,
   });
+  // Record the REAL enemy id fought (Act-2 biome enemies carry it on `enemyDef`, not the nominal
+  // `enemyId`), for cross-act compendium discovery. Bosses are kill-gated, so they are NOT recorded.
+  const foughtEnemyIds =
+    kind === 'boss' || (state.foughtEnemyIds ?? []).includes(enemyDef.id)
+      ? state.foughtEnemyIds
+      : [...(state.foughtEnemyIds ?? []), enemyDef.id];
   return {
     ...state,
     playerHp: encounter.playerHp, // combat-start heals (e.g. Phoenix Feather) persist
+    ...(foughtEnemyIds === state.foughtEnemyIds ? {} : { foughtEnemyIds }),
     phase: { kind: 'combat', encounter, encounterKind: kind, bossPhase: 0 },
   };
 }
@@ -185,7 +204,9 @@ export function enterNode(state: RunState, options: RunOptions = {}): RunState {
       return enterCombat(state, BOSS_NOMINAL_ENEMY_ID, enemyDef, 'boss', encounterSeedFor(state.seed, key), options);
     }
     case 'shop': {
-      const { shop } = generateShop(state.relicIds, createRng(shopSeedFor(state.seed, key)));
+      // Thread the run's meta pool SNAPSHOT (§2): the shop stocks only unlocked, unowned relics.
+      // Absent snapshot ⇒ generateShop's base-12 default ⇒ byte-identical to the pre-wave-2 shop.
+      const { shop } = generateShop(state.relicIds, createRng(shopSeedFor(state.seed, key)), state.unlockedRelicIds);
       return { ...state, phase: { kind: 'shop', shop } };
     }
     case 'event': {
@@ -194,6 +215,10 @@ export function enterNode(state: RunState, options: RunOptions = {}): RunState {
     }
     case 'rest':
       return { ...state, phase: { kind: 'rest', rest: createRestState() } };
+    case 'altar':
+      // Seed the altar's rarity-roll + relic-pick stream from the node coordinate (path-independent,
+      // survives save/load). The pick itself waits until the player commits (`sacrificeAtAltar`).
+      return { ...state, phase: { kind: 'altar', rngState: createRng(altarSeedFor(state.seed, key)) } };
   }
 }
 
@@ -284,6 +309,7 @@ export function playEncounterTurn(state: RunState, path: Path, options: RunOptio
       state.relicIds,
       createRng(draftSeedFor(state.seed, nodeSeedKey(node.floor + actFloorOffset(state.act), node.index))),
       isElite ? 'epic' : 'common', // migration-mechanical: relic tiers normal→common, elite→epic
+      state.unlockedRelicIds, // §2 pool snapshot (absent ⇒ base-12 default ⇒ byte-identical)
     );
     const phaseNext: RunState['phase'] = opts.length === 0 ? { kind: 'awaiting_move' } : { kind: 'draft', options: opts };
     return { state: { ...won, phase: phaseNext }, resolution };
@@ -331,7 +357,10 @@ export function advanceAct(state: RunState): RunState {
   // 2. onActStart relic hooks (wave 1b): bonus gold + a capped bonus heal on top of the transition.
   const gold = state.gold + actStartGold(state.relicIds);
   playerHp = Math.min(state.playerMaxHp, playerHp + actStartPlayerHeal(state.relicIds));
-  // 3. Generate the Act-2 map (same generator, independent layout stream) and park at its start.
+  // 3. Bank the just-finished Act-1 encounters for CUMULATIVE cross-act scoring (R2) BEFORE the
+  // Act-1 map is discarded: every won fight/elite on the Act-1 path PLUS the Act-1 boss just beaten.
+  const priorActsEncountersWon = (state.priorActsEncountersWon ?? 0) + currentActEncountersWon(state) + 1;
+  // 4. Generate the Act-2 map (same generator, independent layout stream) and park at its start.
   const map = generateMap(mapSeedForAct(state.seed, 2));
   return {
     ...state,
@@ -340,6 +369,7 @@ export function advanceAct(state: RunState): RunState {
     gold,
     map,
     mapState: createMapState(map),
+    priorActsEncountersWon,
     phase: { kind: 'awaiting_node' },
   };
 }
@@ -373,4 +403,48 @@ export function advanceToNode(state: RunState, nodeId: string): RunState {
 export function abandonRun(state: RunState): RunState {
   assertRunActive(state);
   return finalize(state, 'defeat');
+}
+
+/** The result of an Altar sacrifice: the terminal run, the new meta, and the unlock event(s). */
+export interface AltarSacrificeResult {
+  readonly state: RunState;
+  readonly meta: MetaState;
+  readonly events: readonly UnlockEvent[];
+  /** The relic unlocked (null only if literally EVERY relic is already unlocked). */
+  readonly relicId: string | null;
+}
+
+/**
+ * SACRIFICE the run at an Altar (spec §2c): end it NOW to permanently unlock ONE not-yet-unlocked
+ * relic. The run becomes terminal `sacrificed` (banks score as a defeat — the UI clears the save);
+ * the relic is chosen by the altar's seeded, DEPTH-SCALED draw from META's LOCKED pool
+ * (`pickAltarUnlock`) and folded into the profile via `applyAltarUnlock` (an immediate META event,
+ * even though the run died — the whole point). Pure: returns the new run + meta + events; the caller
+ * persists the meta and surfaces the ceremony. Requires an active run in the `altar` phase.
+ */
+export function sacrificeAtAltar(state: RunState, meta: MetaState): AltarSacrificeResult {
+  assertRunActive(state);
+  assertRunPhase(state, 'altar');
+  const phase = state.phase;
+  if (phase.kind !== 'altar') throw new Error('unreachable');
+
+  const floor = currentRunNode(state).floor;
+  const norm = normalizeMeta(meta);
+  const pick = pickAltarUnlock(phase.rngState, norm.unlockedRelicIds ?? UNLOCKED_BY_DEFAULT_IDS, state.act, floor);
+  const unlock =
+    pick.relicId === null ? { meta: norm, events: [] as readonly UnlockEvent[] } : applyAltarUnlock(norm, pick.relicId);
+
+  return {
+    state: finalize(state, 'sacrificed'),
+    meta: unlock.meta,
+    events: unlock.events,
+    relicId: pick.relicId,
+  };
+}
+
+/** Leave the altar WITHOUT sacrificing (a no-op node) — advance to the move-choice phase. */
+export function leaveAltar(state: RunState): RunState {
+  assertRunActive(state);
+  assertRunPhase(state, 'altar');
+  return { ...state, phase: { kind: 'awaiting_move' } };
 }

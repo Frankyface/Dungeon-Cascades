@@ -34,5 +34,6 @@ export const NODE_COLOR: Readonly<Record<NodeType, string>> = {
   event: '#3b82f6',
   shop: '#f5c542',
   rest: '#30a46c',
+  altar: '#7c2d3a',
   boss: '#ff6b6b',
 };

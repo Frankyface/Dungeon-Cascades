@@ -98,7 +98,14 @@ export function computeEffects(
       if (modifiers?.healGroup) amount = modifiers.healGroup(baseAmount, size, totalCombos);
       rawHeal += amount;
     } else {
-      if (modifiers?.damageGroup) amount = modifiers.damageGroup(baseAmount, g.color, size, totalCombos);
+      if (modifiers?.damageGroup) {
+        // PER-GROUP ≥0 CLAMP (decisions.md 2026-07-17 R3): a negative ADDITIVE relic fold
+        // (e.g. zenith-chalice's −2/group, tidal-coffers' −10%) can drive a single group's
+        // pre-cascade amount below 0 — a group must never HEAL the enemy or eat another group's
+        // damage in the sum. Clamp each transformed damage group at 0. Byte-identical when no
+        // modifier is supplied (baseAmount is always ≥0) and for any non-negative fold.
+        amount = Math.max(0, modifiers.damageGroup(baseAmount, g.color, size, totalCombos));
+      }
       rawDamage += amount;
     }
 

@@ -12,6 +12,7 @@ import {
   advanceAct,
   getEvent,
   greedyComboPath,
+  leaveAltar,
   legalNextNodes,
   playEncounterTurn,
   startRun,
@@ -42,6 +43,8 @@ function stepViaSession(state: RunState): RunState {
       return applyRunAction(state, { type: 'travel', nodeId: legalNextNodes(state.map, state.mapState)[0] });
     case 'act_transition':
       return advanceAct(state); // the between-acts step (engine transition; UI provider wiring is a UI-wave follow-up)
+    case 'altar':
+      return leaveAltar(state); // engine transition; the sacrifice/leave UI action is a UI-wave follow-up
     case 'ended':
       return state;
   }

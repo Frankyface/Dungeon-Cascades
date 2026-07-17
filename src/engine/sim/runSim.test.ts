@@ -58,21 +58,27 @@ describe('full-run sim — policy fixed-seed regression (24 runs, seed 42, TWO-A
   });
 
   it('posts the recorded completed-run encounter and move bands (both acts)', () => {
-    // A completed run now spans BOTH acts (~22 encounters, ~128 moves) — the old single-act
+    // A completed run now spans BOTH acts (~22 encounters, ~132 moves) — the old single-act
     // 8–12 / 30–90 bands no longer describe a full run; these are the recorded two-act actuals.
+    // ALTAR RE-RECORD (Stage-6 wave 2): adding the Altar node (spec §2c) re-routed the two winning
+    // runs around an altar into different fights — SAME encounter count (22) but different turn
+    // counts, so the completed-MOVES band shifted 127/128.5/130 → 130/132/134 (encounters unchanged).
     expect(policy.encMinCompleted).toBe(22);
     expect(policy.encMedianCompleted).toBe(22);
     expect(policy.encMaxCompleted).toBe(22);
-    expect(policy.movesMinCompleted).toBe(127);
-    expect(policy.movesMedianCompleted).toBe(128.5);
-    expect(policy.movesMaxCompleted).toBe(130);
+    expect(policy.movesMinCompleted).toBe(130);
+    expect(policy.movesMedianCompleted).toBe(132);
+    expect(policy.movesMaxCompleted).toBe(134);
   });
 
   it('posts the recorded aggregate totals (drift guards)', () => {
     const totalMoves = policyResults.reduce((a, r) => a + r.moves, 0);
     const totalRelics = policyResults.reduce((a, r) => a + r.relics, 0);
     const totalEncounters = policyResults.reduce((a, r) => a + r.encounters, 0);
-    expect(totalMoves).toBe(1394);
+    // ALTAR RE-RECORD: total moves 1394 → 1401 (+7, the two winning runs' re-routed fights);
+    // relics (184) and encounters (262) are unchanged — the altar sits OFF the aggregate encounter
+    // count (a leave is not an encounter) and the bot never drafts differently on the losing runs.
+    expect(totalMoves).toBe(1401);
     expect(totalRelics).toBe(184);
     expect(totalEncounters).toBe(262);
   });

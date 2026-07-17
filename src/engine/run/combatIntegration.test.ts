@@ -122,6 +122,19 @@ describe('no-modifier byte-identity guard (protects the Stage-2 baseline)', () =
   });
 });
 
+describe('per-group damage ≥0 clamp through a real relic (Zenith Chalice, R3)', () => {
+  it("Zenith Chalice's −2/group cannot push a group below 0 or eat a healthy group's damage", () => {
+    // Two damage groups: R resisted (×0.5, base 1.5) and G weak (×2.0, base 6). Zenith Chalice
+    // folds −2 onto each. R: 1.5 − 2 = −0.5 → clamped to 0; G: 6 − 2 = 4. totalCombos 2 ⇒ ×1.25.
+    const groups = [
+      { color: 'R' as TileColor, positions: [{ col: 0, row: 0 }, { col: 0, row: 1 }, { col: 0, row: 2 }] },
+      { color: 'G' as TileColor, positions: [{ col: 1, row: 0 }, { col: 1, row: 1 }, { col: 1, row: 2 }] },
+    ];
+    const fx = computeEffects(groups, { R: 0.5, G: 2.0 }, DEFAULT_COMBAT_CONFIG, buildCombatModifiers(['zenith-chalice']));
+    expect(fx.damage).toBe(5); // (0 + 4) × 1.25 = 5 — the clamped R group contributes 0, not −0.5
+  });
+});
+
 describe('startEncounterWithRelics — combat-start effects', () => {
   it('with no relics equals a plain start', () => {
     const plain = startEncounter('slime', 2026);

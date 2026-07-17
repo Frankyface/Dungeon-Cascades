@@ -39,7 +39,12 @@ export function routeForRunState(state: RunState): RunRoute {
       return '/run/event';
     case 'rest':
       return '/run/rest';
+    case 'altar':
+      // Engine-only mechanical fallback: the altar phase shows on the MAP screen for now; the UI
+      // wave adds the dedicated `/run/altar` sacrifice screen (and its route). (§2c)
+      return '/run';
     case 'ended':
+      // `sacrificed` counts as a defeat (§2c); the UI wave can add a dedicated sacrifice ceremony.
       return state.status === 'victory' ? '/run/victory' : '/run/defeat';
   }
 }

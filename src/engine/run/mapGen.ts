@@ -263,6 +263,35 @@ export function generateMap(seed: number, config: MapConfig = DEFAULT_MAP_CONFIG
     edgesByFloor.push(e.edges);
   }
 
+  // Altar placement (spec §2c) — drawn LAST, after every structural roll, so a map WITHOUT an altar
+  // is byte-identical to the pre-altar generator for the same seed (nothing below consumes RNG for
+  // output). With probability `altarChance`, convert ONE `fight` node on an eligible MIDDLE encounter
+  // floor to an `altar`. Only `fight` nodes are eligible (never `elite`, so ≥1 elite survives; never
+  // `shop`/`event`, so those singletons survive), and only floors in [altarMinFloor, floorCount−1−
+  // altarPreBossMargin] of width ≥2 (never floor 0/1, never the pre-boss/boss, always skippable —
+  // a non-altar node remains on the floor). Converting a type touches no edges (edges use widths
+  // only), so reachability, out-degree, and the shop/elite invariants are all preserved.
+  {
+    const roll = nextFloat(state);
+    state = roll.state;
+    if (roll.value < config.altarChance) {
+      const maxFloor = plan.length - 1 - config.altarPreBossMargin;
+      const coords: Array<[number, number]> = [];
+      for (let f = config.altarMinFloor; f <= maxFloor; f++) {
+        if (plan[f] !== 'encounter' || widths[f] < 2) continue;
+        for (let i = 0; i < widths[f]; i++) {
+          if (typesByFloor[f][i] === 'fight') coords.push([f, i]);
+        }
+      }
+      if (coords.length > 0) {
+        const pick = nextInt(state, coords.length);
+        state = pick.state;
+        const [f, i] = coords[pick.value];
+        typesByFloor[f][i] = 'altar';
+      }
+    }
+  }
+
   // Assemble nodes (flat, ordered by floor then index).
   const nodes: MapNode[] = [];
   for (let f = 0; f < plan.length; f++) {

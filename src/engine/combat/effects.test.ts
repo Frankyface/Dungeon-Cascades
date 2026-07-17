@@ -120,6 +120,31 @@ describe('computeEffects — heal groups feed the cascade multiplier (dedicated 
   });
 });
 
+describe('computeEffects — per-group damage ≥0 clamp (decisions.md 2026-07-17 R3)', () => {
+  // A relic fold that subtracts 4 from every damage group's pre-cascade amount — mimics a large
+  // negative ADDITIVE fold (e.g. zenith-chalice's −2/group). Without the clamp a small group folds
+  // NEGATIVE and would eat a healthy group's damage in the sum, or heal the enemy outright.
+  const minus4 = { damageGroup: (base: number): number => base - 4 };
+
+  it('clamps a negatively-folded single group at 0 (never heals the enemy)', () => {
+    // R size 3, normal affinity → base 3; fold 3 − 4 = −1 → clamped to 0.
+    expect(computeEffects([group('R', 3)], {}, CFG, minus4).damage).toBe(0);
+  });
+
+  it('a clamped group does not subtract from a healthy group in the sum', () => {
+    // R(3) normal → base 3, fold −1 → clamp 0.  G(3) weak ×2 → base 6, fold 2 (stays positive).
+    // totalCombos 2 ⇒ ×1.25. Clamped: (0 + 2) × 1.25 = 2.5 → round 3. Unclamped would be
+    // (−1 + 2) × 1.25 = 1.25 → round 1 — the clamp is exactly what makes this 3, not 1.
+    const fx = computeEffects([group('R', 3), group('G', 3)], { G: 2.0 }, CFG, minus4);
+    expect(fx.damage).toBe(3);
+  });
+
+  it('is byte-identical when the fold stays non-negative (clamp is a no-op)', () => {
+    const plus2 = { damageGroup: (base: number): number => base + 2 };
+    expect(computeEffects([group('R', 3)], {}, CFG, plus2).damage).toBe(5); // 3 + 2, unclamped
+  });
+});
+
 describe('computeEffects — degenerate inputs', () => {
   it('no groups (no-match move) → 0 damage, 0 heal, multiplier 1', () => {
     const fx = computeEffects([], {}, CFG);

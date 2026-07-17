@@ -142,6 +142,28 @@ describe('playTurn — cascadeWave consumption (byte-identical when absent)', ()
     // Player got +3 heal before the slime's 8-damage attack landed.
     expect(withCascade.playerHpAfter).toBe(plain.playerHpAfter + 3);
   });
+
+  // The R-triple match deals 6 (slime weak R, 1 wave). These pin the R3 tremor-stone floor-at-1
+  // rule: the PASSIVE cascade chip never lands the kill — only the player's own match can.
+  it('cascade enemyDamage floors the enemy at 1 — the passive drip never wins the fight (R3)', () => {
+    const lowEnemy: CombatState = { ...base, enemyHp: 10, enemyMaxHp: 10 };
+    const res = playTurn(lowEnemy, LEFT_PATH, SAFE_REFILL, undefined, {
+      cascadeWave: () => ({ enemyDamage: 5, playerHeal: 0 }),
+    });
+    expect(res.damage).toBe(6); // the match portion
+    // 10 − 6 = 4 (match, alive), then the 5-point cascade chip floors at 1 — NOT 0.
+    expect(res.enemyHpAfter).toBe(1);
+    expect(res.status).toBe('ongoing'); // the drip did not kill
+  });
+
+  it("the player's MATCH still lands the kill (the floor only guards the passive drip)", () => {
+    const lethal: CombatState = { ...base, enemyHp: 6, enemyMaxHp: 6 };
+    const res = playTurn(lethal, LEFT_PATH, SAFE_REFILL, undefined, {
+      cascadeWave: () => ({ enemyDamage: 5, playerHeal: 0 }),
+    });
+    expect(res.enemyHpAfter).toBe(0); // the 6-damage match kills outright
+    expect(res.status).toBe('won');
+  });
 });
 
 // ── run-layer event helpers ─────────────────────────────────────────────────────────────────

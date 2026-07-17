@@ -163,6 +163,49 @@ describe('generateMap — distribution constraints (property, ALL paths via DP)'
   });
 });
 
+describe('generateMap — altar placement (spec §2c)', () => {
+  it('a map has AT MOST one altar, on a middle floor (never floor 0/1, never pre-boss/boss), always skippable', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 2 ** 31 - 1 }), (seed) => {
+        const map = generateMap(seed);
+        const altars = map.nodes.filter((n) => n.type === 'altar');
+        expect(altars.length).toBeLessThanOrEqual(1); // never more than one
+        const lastFloor = map.floorCount - 1;
+        for (const altar of altars) {
+          // Placement bounds: floor in [altarMinFloor, lastFloor - altarPreBossMargin] — the margin
+          // trims the boss floor AND the pre-boss funnel (margin 2 ⇒ last eligible floor 12−2 = 10).
+          expect(altar.floor).toBeGreaterThanOrEqual(DEFAULT_MAP_CONFIG.altarMinFloor);
+          expect(altar.floor).toBeLessThanOrEqual(lastFloor - DEFAULT_MAP_CONFIG.altarPreBossMargin);
+          // Skippable: its floor holds at least one NON-altar node so a path can route around it.
+          const floorNodes = map.nodes.filter((n) => n.floor === altar.floor);
+          expect(floorNodes.some((n) => n.type !== 'altar')).toBe(true);
+          // A converted node keeps valid forward edges (structure intact).
+          expect(altar.next.length).toBeGreaterThan(0);
+        }
+      }),
+      { numRuns: 400 },
+    );
+  });
+
+  it('altars appear in SOME but not all maps (≈40% target, loose bounds over 500 seeds)', () => {
+    let withAltar = 0;
+    const N = 500;
+    for (let seed = 0; seed < N; seed++) {
+      if (generateMap(seed).nodes.some((n) => n.type === 'altar')) withAltar++;
+    }
+    const rate = withAltar / N;
+    expect(rate).toBeGreaterThan(0.25); // clearly "some"
+    expect(rate).toBeLessThan(0.55); // clearly not "all" — brackets the 0.4 chance
+  });
+
+  it('disabling the altar (altarChance 0) yields no altar nodes', () => {
+    for (const seed of [0, 1, 42, 2026]) {
+      const map = generateMap(seed, { ...DEFAULT_MAP_CONFIG, altarChance: 0 });
+      expect(map.nodes.some((n) => n.type === 'altar')).toBe(false);
+    }
+  });
+});
+
 describe('generateMap — determinism', () => {
   it('same seed ⇒ deep-equal map across 1000 regenerations', () => {
     for (const seed of [0, 42, 2026]) {

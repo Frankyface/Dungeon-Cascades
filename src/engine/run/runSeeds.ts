@@ -31,6 +31,8 @@ export const RUN_TAG_EVENT = 6; // an event node's scripted-event draw + gamble 
 /** Stage-6 wave 1c two-act sub-streams (independent of every stream above). */
 export const RUN_TAG_MAP2 = 7; // the Act-2 map layout (a fresh stream so Act 2 ≠ Act 1)
 export const RUN_TAG_ACT2_BIOME = 8; // the seeded Act-2 biome pick (deterministic per run seed)
+/** Stage-6 wave 2 sub-stream: the Altar node's seeded rarity roll + relic pick (§2c). */
+export const RUN_TAG_ALTAR = 9;
 
 /**
  * Derive a uint32 sub-seed from a seed and an integer tag. Deterministic and pure —
@@ -100,4 +102,9 @@ export function shopSeedFor(runSeed: number, nodeKey: number): number {
 /** The event seed (scripted-event draw + gamble rolls) for the node at `nodeKey`. */
 export function eventSeedFor(runSeed: number, nodeKey: number): number {
   return deriveSeed(deriveSeed(runSeed, RUN_TAG_EVENT), nodeKey);
+}
+
+/** The altar seed (rarity roll + locked-pool relic pick) for the node at `nodeKey`. */
+export function altarSeedFor(runSeed: number, nodeKey: number): number {
+  return deriveSeed(deriveSeed(runSeed, RUN_TAG_ALTAR), nodeKey);
 }

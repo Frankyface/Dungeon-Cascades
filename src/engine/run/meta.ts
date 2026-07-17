@@ -16,7 +16,9 @@
 import type { RunState } from './runTypes';
 import { currentRunNode } from './runTypes';
 import { nodeById } from './mapNav';
-import { VARIANT_IDS } from './variants';
+import { actFloorOffset } from './runConfig';
+import { UNLOCKED_BY_DEFAULT_IDS } from './relics';
+import { VARIANT_IDS, GOD_OF_WAR_ID } from './variants';
 
 // ── Score constants (the single tuning surface for run scoring) ───────────────────────
 //
@@ -53,26 +55,41 @@ export function scoreRun(input: RunScoreInput): number {
 }
 
 /**
- * Derive a terminal run's score inputs from its final `RunState` — no extra bookkeeping needed
- * on RunState. `floorsCleared` is the current (deepest) node's floor; `encountersWon` counts the
- * fight/elite nodes on the visited path that were cleared (all of them EXCEPT the current node
- * when the run ended in defeat there — a death only ever happens IN a combat node), plus the boss
- * on a victory. Only meaningful once the run is terminal.
+ * Won fight/elite encounters on a run's CURRENT-act map path: every visited fight/elite node
+ * EXCEPT the one a defeat died in (a death only ever happens IN a combat node). Does NOT count
+ * the boss (a `boss`-type node) — the caller adds that. Shared by `runScoreInput` and, at the act
+ * transition, by the cross-act accumulation that banks a finished act's encounters (R2). Pure.
  */
-export function runScoreInput(state: RunState): RunScoreInput {
-  const victory = state.status === 'victory';
-  const floorsCleared = currentRunNode(state).floor;
+export function currentActEncountersWon(state: RunState): number {
   const currentId = state.mapState.currentNodeId;
-
-  let encountersWon = 0;
+  let won = 0;
   for (const id of state.mapState.visited) {
     const type = nodeById(state.map, id).type;
     if (type !== 'fight' && type !== 'elite') continue;
     // The current node on a DEFEAT is the encounter that killed the player — not a win.
     if (id === currentId && state.status === 'defeat') continue;
-    encountersWon++;
+    won++;
   }
-  if (victory) encountersWon++; // the boss (its node is 'boss', not counted in the loop)
+  return won;
+}
+
+/**
+ * Derive a terminal run's score inputs from its final `RunState`. CUMULATIVE across acts
+ * (decisions.md 2026-07-17 R2): a 2-act run credits BOTH acts.
+ * - `floorsCleared` = the deepest node's GLOBAL floor (`localFloor + actFloorOffset(act)`), so an
+ *   Act-2 death/victory counts the whole 13-floor Act-1 depth beneath it. Act 1 is byte-identical
+ *   (offset 0).
+ * - `encountersWon` = the current act's won fights/elites (`currentActEncountersWon`) PLUS the
+ *   `priorActsEncountersWon` banked from every completed act (each including that act's beaten
+ *   boss), PLUS 1 for the terminal act's boss on a victory. A single-act run carries no prior
+ *   acts (⇒ 0), so its score is unchanged from before R2.
+ * Only meaningful once the run is terminal.
+ */
+export function runScoreInput(state: RunState): RunScoreInput {
+  const victory = state.status === 'victory';
+  const floorsCleared = currentRunNode(state).floor + actFloorOffset(state.act);
+  let encountersWon = (state.priorActsEncountersWon ?? 0) + currentActEncountersWon(state);
+  if (victory) encountersWon++; // the terminal act's boss (its node is 'boss', not counted above)
 
   return { floorsCleared, encountersWon, victory };
 }
@@ -85,13 +102,20 @@ export function scoreForRun(state: RunState): number {
 // ── Unlock tranches (cumulative-score milestones → variant unlocks) ───────────────────
 //
 // PACING ARITHMETIC (feature-meta-variants.md target: first unlock ~2–3 runs, full slate
-// ~15–20 runs). Vanilla policy-bot mean score is ≈ 20/run (measured by `--mode report`; see the
-// Verification Log). With that baseline the tranches below fire at:
-//   T1  50 → ~2.5 runs     T4 210 → ~10.5 runs
-//   T2 100 → ~5 runs       T5 290 → ~14.5 runs
-//   T3 150 → ~7.5 runs     T6 360 → ~18 runs
-// i.e. the first unlock lands inside the 2–3-run window and the full six-variant slate inside the
-// 15–20-run window. The thresholds are the tuning surface; re-derive if scoring or balance moves.
+// ~15–20 runs). R2 RE-DERIVATION (decisions.md 2026-07-17): with CUMULATIVE cross-act scoring a
+// 2-act run now banks BOTH acts' floors+encounters, so the vanilla policy-bot mean rose from the
+// old ≈20/run to ≈31.6/run (measured N=1000, seed 42, at the CURRENT untuned two-act balance:
+// win rate ~7%). At that mean the thresholds below fire at:
+//   T1  50 → ~1.6 runs     T4 210 → ~6.6 runs
+//   T2 100 → ~3.2 runs     T5 290 → ~9.2 runs
+//   T3 150 → ~4.7 runs     T6 360 → ~11.4 runs
+// i.e. the first unlock still lands early but the full slate now completes faster than the 15–20
+// window. The thresholds are the SIM-TUNING surface and are LEFT UNCHANGED this wave on purpose:
+// the two-act win rate is still far below the spec §9 20–60% band, and lifting it there (the
+// balance-tuning wave's job) will raise the mean AGAIN (victories add the +10 bonus + more
+// cumulative encounters). Final tranche calibration therefore rides WITH the win-rate band re-tune,
+// exactly like the run-sim balance BANDS are deferred to that wave (runSim.test.ts). Re-derive the
+// thresholds against the tuned mean at that point.
 
 /** One unlock milestone: cross `score` (cumulative) and `variantId` becomes available. */
 export interface UnlockTranche {
@@ -111,15 +135,78 @@ export const UNLOCK_TRANCHES: readonly UnlockTranche[] = [
 
 // ── MetaState + operations ────────────────────────────────────────────────────────────
 
-/** The one serializable meta object: cumulative score + the set of unlocked variant ids. */
+/**
+ * The one serializable meta object. Stage 4 gave it a cumulative score + the unlocked VARIANT set;
+ * Stage-6 wave 2 (spec-systems.md §2) adds the CONTENT unlock & discovery model.
+ *
+ * The wave-2 fields are OPTIONAL — every read defaults to its fresh value via `??` (and `loadMeta`
+ * runs them through `normalizeMeta`). This mirrors the RunState evolution pattern (`variantId?`,
+ * `priorActsEncountersWon?`): an OLD save that predates these fields, or a partial test literal,
+ * stays valid and loads as a fully-formed fresh-defaulted profile — no migration, no power creep.
+ */
 export interface MetaState {
   readonly score: number;
   /** Unlocked variant ids, in canonical (tranche) order. Vanilla is implicit — never listed. */
   readonly unlockedVariantIds: readonly string[];
+  /**
+   * Relic ids the player may draft/shop for (§2). Fresh = the base 12 (`UNLOCKED_BY_DEFAULT_IDS`);
+   * expansion relics enter here via the biome-reached / boss-killed / Altar paths. Locked relics
+   * NEVER appear in drafts/shops.
+   */
+  readonly unlockedRelicIds?: readonly string[];
+  /** Enemy ids discovered for the compendium — added on first FIGHT, or on their biome's unlock. */
+  readonly discoveredEnemyIds?: readonly string[];
+  /** Boss ids discovered for the compendium — added on first KILL, or on their biome's unlock. */
+  readonly discoveredBossIds?: readonly string[];
+  /**
+   * Act-2 biomes unlocked by REACHING them (§2a). `dungeon` (the always-present Act-1 biome) is
+   * IMPLICIT and never listed — exactly like vanilla in `unlockedVariantIds` — so this set holds
+   * only the four Act-2 biomes.
+   */
+  readonly unlockedBiomeIds?: readonly string[];
+  /** True once all 5 bosses are discovered (spec §6 gate for Boss Rush). */
+  readonly bossRushUnlocked?: boolean;
+  /** True once Boss Rush is first WON (spec §6 / content-roles.md — unlocks the God of War class). */
+  readonly godOfWarUnlocked?: boolean;
+  /** Altar bookkeeping (§2c): how many relics have been permanently unlocked via Altar sacrifice. */
+  readonly altarUnlockCount?: number;
 }
 
-/** A fresh profile: no score, nothing unlocked (vanilla only). */
-export const INITIAL_META_STATE: MetaState = { score: 0, unlockedVariantIds: [] };
+/**
+ * A fresh profile: no score, no variants, the base 12 relics unlocked, nothing discovered, no Act-2
+ * biome reached, Boss Rush / God of War still locked. Fully-formed (every field populated) so the UI
+ * gets a complete object; the fields stay optional on the type for backward-compat with old saves.
+ */
+export const INITIAL_META_STATE: MetaState = {
+  score: 0,
+  unlockedVariantIds: [],
+  unlockedRelicIds: [...UNLOCKED_BY_DEFAULT_IDS],
+  discoveredEnemyIds: [],
+  discoveredBossIds: [],
+  unlockedBiomeIds: [],
+  bossRushUnlocked: false,
+  godOfWarUnlocked: false,
+  altarUnlockCount: 0,
+};
+
+/**
+ * Fill any missing wave-2 fields of a (possibly old / partial) MetaState with their fresh defaults,
+ * returning a fully-formed profile. Pure. Idempotent (a complete state is returned unchanged in
+ * value). Used by `loadMeta` so the UI and unlock derivation always see every field.
+ */
+export function normalizeMeta(meta: MetaState): MetaState {
+  return {
+    score: meta.score,
+    unlockedVariantIds: meta.unlockedVariantIds,
+    unlockedRelicIds: meta.unlockedRelicIds ?? [...UNLOCKED_BY_DEFAULT_IDS],
+    discoveredEnemyIds: meta.discoveredEnemyIds ?? [],
+    discoveredBossIds: meta.discoveredBossIds ?? [],
+    unlockedBiomeIds: meta.unlockedBiomeIds ?? [],
+    bossRushUnlocked: meta.bossRushUnlocked ?? false,
+    godOfWarUnlocked: meta.godOfWarUnlocked ?? false,
+    altarUnlockCount: meta.altarUnlockCount ?? 0,
+  };
+}
 
 /** Every variant id whose tranche threshold is met at `score` (canonical order). */
 export function unlockedAtScore(score: number): readonly string[] {
@@ -163,11 +250,15 @@ export function isVariantUnlocked(meta: MetaState, variantId: string): boolean {
 
 /**
  * The variant ids a player may currently START a run from: vanilla (represented by `null`) is
- * always first, then the unlocked variants in canonical order. Kept as a list of `string | null`
- * so the UI can render "vanilla" as a real, always-present choice.
+ * always first, then the unlocked tranche variants in canonical order, and — ONLY once Boss Rush
+ * has been won (`godOfWarUnlocked`) — the God of War prestige class LAST. God of War is never part
+ * of the tranche set, so it appears here strictly by its own earned flag (spec §3). Kept as a list
+ * of `string | null` so the UI can render "vanilla" as a real, always-present choice.
  */
 export function selectableStarts(meta: MetaState): readonly (string | null)[] {
-  return [null, ...VARIANT_IDS.filter((id) => meta.unlockedVariantIds.includes(id))];
+  const starts: (string | null)[] = [null, ...VARIANT_IDS.filter((id) => meta.unlockedVariantIds.includes(id))];
+  if (meta.godOfWarUnlocked === true) starts.push(GOD_OF_WAR_ID);
+  return starts;
 }
 
 // ── Persistence port ──────────────────────────────────────────────────────────────────
@@ -209,5 +300,5 @@ export class InMemoryMetaStore implements MetaStorePort {
  */
 export function loadMeta(store: MetaStorePort): MetaState {
   const loaded = store.load();
-  return loaded === null ? INITIAL_META_STATE : applyUnlocks(loaded);
+  return loaded === null ? INITIAL_META_STATE : applyUnlocks(normalizeMeta(loaded));
 }

@@ -231,7 +231,16 @@ export function playTurn(
   const shieldAbsorbed = Math.min(shield0, afterArmor);
   const shieldAfterMove = shield0 - shieldAbsorbed;
   const dmgToEnemy = afterArmor - shieldAbsorbed;
-  const enemyHpAfterMove = Math.max(0, state.enemyHp - dmgToEnemy - cascadeEnemyDamage);
+  // The player's MATCH damage lands first and CAN fell the enemy (a normal kill).
+  const enemyHpAfterMatch = Math.max(0, state.enemyHp - dmgToEnemy);
+  // Cascade-wave chip (tremor-stone / chain-fed-ruin / Landslide Core) is a PASSIVE, affinity-
+  // ignoring drip that NEVER lands the killing blow — only the player's own match damage can
+  // (decisions.md 2026-07-17 R3 / content-relics.md #20 "enemy HP floored at 1"). So the cascade
+  // portion floors the enemy at 1 when the match left it alive. Byte-identical when there is no
+  // onCascadeWave relic (cascadeEnemyDamage === 0): a match-kill short-circuits to 0, and for a
+  // survivor `max(1, hp) === hp` since hp is a positive integer.
+  const enemyHpAfterMove =
+    enemyHpAfterMatch <= 0 ? 0 : Math.max(1, enemyHpAfterMatch - cascadeEnemyDamage);
 
   // 3. WIN check — a dead enemy never acts.
   if (enemyHpAfterMove <= 0) {

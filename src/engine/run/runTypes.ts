@@ -20,8 +20,13 @@ import { currentNode, legalNextNodes } from './mapNav';
 import { getEvent } from './events';
 import { buyShopItem } from './shop';
 
-/** Terminal-or-active status of a run. `defeat` also covers abandonment. */
-export type RunStatus = 'active' | 'victory' | 'defeat';
+/**
+ * Terminal-or-active status of a run. `defeat` also covers abandonment. `sacrificed` (Stage-6 wave 2,
+ * spec §2c) is the Altar's terminal: the run ends immediately in exchange for a permanent relic
+ * unlock — it counts as a DEFEAT for score banking (no victory bonus) but is tracked distinctly so
+ * the UI can play the sacrifice ceremony rather than a death screen.
+ */
+export type RunStatus = 'active' | 'victory' | 'defeat' | 'sacrificed';
 
 /** Which kind of encounter a combat phase is (decides the win reward path). */
 export type EncounterKind = 'fight' | 'elite' | 'boss';
@@ -42,6 +47,7 @@ export type RunPhase =
   | { readonly kind: 'shop'; readonly shop: ShopState }
   | { readonly kind: 'event'; readonly eventId: string; readonly rngState: RngState }
   | { readonly kind: 'rest'; readonly rest: RestState }
+  | { readonly kind: 'altar'; readonly rngState: RngState } // the sacrifice-for-unlock choice (§2c)
   | { readonly kind: 'awaiting_move' } // node resolved: must move to a next node
   | { readonly kind: 'act_transition' } // Act-1 boss beaten: must advanceAct into Act 2
   | { readonly kind: 'ended' }; // terminal (see status)
@@ -81,6 +87,33 @@ export interface RunState {
    * the initial state at start) — the flow state machine never reads it.
    */
   readonly variantId?: string;
+  /**
+   * Cumulative won encounters banked from ALREADY-COMPLETED acts (Stage-6 wave 2, decisions.md
+   * 2026-07-17 R2 "cumulative cross-act run scoring"). `advanceAct` folds the finished act's won
+   * fights/elites PLUS its beaten boss into this counter before it discards that act's map, so a
+   * 2-act run's banked meta score credits BOTH acts (the current act's traversal is read live from
+   * `mapState`; this carries the prior acts'). ABSENT on a fresh/Act-1 run (⇒ 0), so a single-act
+   * run's score is byte-identical to before R2, and the vanilla `startRun` stays unchanged.
+   */
+  readonly priorActsEncountersWon?: number;
+  /**
+   * The distinct NON-boss enemy ids fought so far this run, appended at each fight/elite combat
+   * entry (Stage-6 wave 2). Accumulates ACROSS acts — unlike `mapState.visited`, which is reset to
+   * the Act-2 map at the transition — so the unlock derivation (`deriveUnlocks`) can mark every
+   * fought enemy discovered even on a run that cleared Act 1 and lost its Act-1 path. Boss discovery
+   * is KILL-gated (derived from the run outcome), so boss ids are intentionally NOT recorded here.
+   * ABSENT until the first combat, so a fresh `startRun` stays byte-identical.
+   */
+  readonly foughtEnemyIds?: readonly string[];
+  /**
+   * The run's SNAPSHOT of the meta-unlocked relic pool (Stage-6 wave 2, spec §2), taken at
+   * `startRun`. Drafts, shops, and event relic-grants filter to this set, so LOCKED relics never
+   * appear in a run. It is a fixed SNAPSHOT on purpose: a relic unlocked MID-RUN (via the Altar,
+   * whose sacrifice ends the run anyway) does NOT retroactively enter the current run's pools — the
+   * next run's snapshot picks it up. ABSENT ⇒ the pools default to the base 12
+   * (`UNLOCKED_BY_DEFAULT_IDS`), so a snapshot-less `startRun(seed)` is byte-identical to before.
+   */
+  readonly unlockedRelicIds?: readonly string[];
 }
 
 /** Whether the run has finished (victory or defeat). Terminal states reject all actions. */
@@ -113,6 +146,8 @@ export type RunAction =
   | { readonly type: 'event_choice'; readonly index: number }
   | { readonly type: 'rest' }
   | { readonly type: 'rest_leave' }
+  | { readonly type: 'sacrifice' } // altar: end the run NOW for a permanent relic unlock (§2c)
+  | { readonly type: 'altar_leave' } // altar: skip it (a no-op node)
   | { readonly type: 'transition' } // the single forced action of the act_transition phase
   | { readonly type: 'move'; readonly nodeId: string };
 
@@ -147,6 +182,9 @@ export function legalActions(state: RunState): readonly RunAction[] {
       return getEvent(phase.eventId).choices.map((_c, index) => ({ type: 'event_choice', index }));
     case 'rest':
       return phase.rest.rested ? [{ type: 'rest_leave' }] : [{ type: 'rest' }, { type: 'rest_leave' }];
+    case 'altar':
+      // Both are always legal — sacrificing ends the run, leaving skips it — so an altar never wedges.
+      return [{ type: 'sacrifice' }, { type: 'altar_leave' }];
     case 'awaiting_move':
       return legalNextNodes(state.map, state.mapState).map((nodeId) => ({ type: 'move', nodeId }));
     case 'act_transition':

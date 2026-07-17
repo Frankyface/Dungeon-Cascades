@@ -96,13 +96,19 @@ export function bossPhaseForHp(hp: number, maxHp: number): number {
 }
 
 /**
- * Scale a boss action's value by the boss-floor attack multiplier. `charge` (value 0) and
- * `curse` (value is a TURN COUNT, not damage) are NON-scaling — scaling curse would inflate its
- * heal-denial duration at deep floors (content-biomes.md, Sunken Catacombs boss-scaling guard).
- * `frostArmor` / `armor` / `spore` / `heal` are amounts and scale like `attack`.
+ * Scale a boss action's value by the boss-floor attack multiplier. NON-scaling verbs (returned
+ * untouched) — mirrors `enemyScaling.scaleAction` so a boss and a fight scale a shared verb the
+ * SAME way:
+ * - `charge` — value is 0 (deals nothing);
+ * - `curse` — value is a TURN COUNT; scaling would inflate its heal-denial duration at deep floors
+ *   (content-biomes.md, Sunken Catacombs boss-scaling guard);
+ * - `spore` — value is a STACK COUNT; "stacks are stacks" — scaling would inflate the DoT length
+ *   (decisions.md 2026-07-17 R1: spore NEVER scales — the Rotmother's spore stays at its base
+ *   value at every floor, matching the fight-side guard already in `enemyScaling.scaleAction`).
+ * `frostArmor` / `armor` / `heal` are AMOUNTS and scale like `attack`.
  */
 function scaleBossAction(action: EnemyAction, atkMult: number): EnemyAction {
-  if (action.type === 'charge' || action.type === 'curse') return action;
+  if (action.type === 'charge' || action.type === 'curse' || action.type === 'spore') return action;
   return { type: action.type, value: Math.round(action.value * atkMult) };
 }
 

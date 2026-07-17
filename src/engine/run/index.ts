@@ -196,10 +196,25 @@ export type { Biome } from './biomes';
 // ── Run state + flow (the lifecycle state machine) ───────────────────────────
 export type { RunState, RunPhase, RunStatus, EncounterKind, RunAction } from './runTypes';
 export { isTerminal, legalActions, currentRunNode, assertRunActive, assertRunPhase } from './runTypes';
-export { startRun, enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, advanceAct, abandonRun } from './runFlow';
-export type { RunOptions, EncounterTurnResult } from './runFlow';
+export {
+  startRun,
+  enterNode,
+  playEncounterTurn,
+  resolveDraftPick,
+  advanceToNode,
+  advanceAct,
+  abandonRun,
+  sacrificeAtAltar,
+  leaveAltar,
+} from './runFlow';
+export type { RunOptions, EncounterTurnResult, AltarSacrificeResult } from './runFlow';
 export { buyFromShop, leaveShop, chooseEventOption, restAtNode, leaveRest } from './runNodes';
 export type { ShopBuyResult } from './runNodes';
+
+// ── Stage 6 wave 2: the Altar node (odds table + seeded locked-pool pick, spec §2c) ──
+export { altarOdds, pickAltarUnlock, ALTAR_ODDS_SHALLOW, ALTAR_ODDS_DEEP } from './altar';
+export type { AltarOdds, AltarPick } from './altar';
+export { altarSeedFor, RUN_TAG_ALTAR } from './runSeeds';
 
 // ── Save/load port + deterministic scripted policies (headless play) ─────────
 export { InMemoryRunStore, saveOnNodeCompletion } from './runStore';
@@ -213,6 +228,8 @@ export {
   VARIANT_REGISTRY,
   VARIANT_IDS,
   MIN_VARIANT_MAX_HP,
+  GOD_OF_WAR,
+  GOD_OF_WAR_ID,
   getVariant,
   resolveVariantStart,
   assertVariantsWellFormed,
@@ -228,6 +245,7 @@ export {
   UNLOCK_TRANCHES,
   scoreRun,
   runScoreInput,
+  currentActEncountersWon,
   scoreForRun,
   unlockedAtScore,
   applyUnlocks,
@@ -235,6 +253,36 @@ export {
   isVariantUnlocked,
   selectableStarts,
   loadMeta,
+  normalizeMeta,
   InMemoryMetaStore,
 } from './meta';
 export type { MetaState, MetaStorePort, RunScoreInput, UnlockTranche } from './meta';
+
+// ── Stage 6 wave 2: content unlock & discovery model (spec §2) ────────────────
+export {
+  BIOME_LEGENDARY_RELIC,
+  BOSS_LEGENDARY_RELIC,
+  ALL_BOSS_IDS,
+  deriveUnlocks,
+  applyAltarUnlock,
+  applyBossRushVictory,
+} from './unlocks';
+export type { UnlockEvent, UnlockResult, UnlockSource } from './unlocks';
+
+// ── Stage 6 wave 2: Boss Rush mode (spec §6) ──────────────────────────────────
+export {
+  BOSS_RUSH_BOSSES,
+  BOSS_RUSH_ORDER,
+  BOSS_RUSH_FLOOR,
+  BOSS_RUSH_HEAL_FRACTION,
+  BOSS_RUSH_DRAFT_TIER,
+  isBossRushTerminal,
+  startBossRush,
+  playBossRushTurn,
+  resolveBossRushDraft,
+  driveBossRush,
+} from './bossRush';
+export type { BossRushState, BossRushPhase, BossRushOptions, BossRushTurnResult, BossRushDriveResult } from './bossRush';
+
+// ── Stage 6 wave 2: dev-mode helpers (spec §8; engine side only) ──────────────
+export { devUnlockAllMeta, devMetaReset, ALL_ENEMY_IDS } from './devMode';

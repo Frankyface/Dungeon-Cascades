@@ -114,16 +114,47 @@ export const VARIANTS: readonly RunVariant[] = [
   },
 ];
 
-/** id → variant, built from the canonical order. Frozen. */
+/** The God of War prestige class id — a selectable start, but NEVER a tranche variant (see below). */
+export const GOD_OF_WAR_ID = 'god-of-war';
+
+/**
+ * God of War — the PRESTIGE class (content-roles.md; spec-systems.md §3). Deliberately ABOVE the
+ * ±5pp purity band by Cam's directive (decisions.md 2026-07-17), so it is kept OUT of `VARIANTS`
+ * (the six band-tested, tranche-unlocked sidegrades) and out of `VARIANT_IDS`/`UNLOCK_TRANCHES`
+ * entirely: it is unlockable ONLY by winning Boss Rush (`meta.godOfWarUnlocked`) and appended to
+ * `selectableStarts` there — never via a score tranche, never band-tested. It IS in
+ * `VARIANT_REGISTRY` so `getVariant('god-of-war')` / `startRun(seed, 'god-of-war')` resolve.
+ *
+ * Modifiers (content-roles.md): a stacked total-war offense (whetstone + cascade-sigil + an opening
+ * ambush) on a still-mortal, defense-less pool — all base-12 relics, so it ships modifier-only with
+ * ZERO engine extension. `maxHpDelta: +12` is the veteran's buffer to pull toward 0 first if sim
+ * shows a near-faceroll; power is concentrated in cascade SKILL, never in defense.
+ */
+export const GOD_OF_WAR: RunVariant = {
+  id: GOD_OF_WAR_ID,
+  name: 'God of War',
+  flavor: 'Armed for total war — a keener edge, escalating fury, an opening ambush, and no shield.',
+  modifiers: {
+    startRelicIds: ['whetstone-charm', 'cascade-sigil', 'ambushers-cowl'],
+    maxHpDelta: 12,
+    goldDelta: 50,
+  },
+};
+
+/**
+ * id → variant. Built from the six tranche variants PLUS the God of War prestige class, so
+ * `getVariant` resolves an earned God of War while `VARIANTS`/`VARIANT_IDS` stay the band-tested six.
+ * Frozen.
+ */
 export const VARIANT_REGISTRY: Readonly<Record<string, RunVariant>> = Object.freeze(
-  VARIANTS.reduce<Record<string, RunVariant>>((acc, v) => {
+  [...VARIANTS, GOD_OF_WAR].reduce<Record<string, RunVariant>>((acc, v) => {
     if (acc[v.id]) throw new Error(`VARIANT_REGISTRY: duplicate variant id '${v.id}'`);
     acc[v.id] = v;
     return acc;
   }, {}),
 );
 
-/** All variant ids in canonical (unlock) order. */
+/** All TRANCHE variant ids in canonical (unlock) order — the band-tested six (God of War excluded). */
 export const VARIANT_IDS: readonly string[] = VARIANTS.map((v) => v.id);
 
 /** Fetch a variant by id. Throws on an unknown id (boundary validation). */
@@ -172,7 +203,7 @@ export function resolveVariantStart(
  * typo fails fast rather than silently granting nothing), and no duplicate start relics within a
  * variant. Called by tests / the roster-integrity guard.
  */
-export function assertVariantsWellFormed(variants: readonly RunVariant[] = VARIANTS): void {
+export function assertVariantsWellFormed(variants: readonly RunVariant[] = [...VARIANTS, GOD_OF_WAR]): void {
   const seenIds = new Set<string>();
   for (const v of variants) {
     if (seenIds.has(v.id)) throw new Error(`assertVariantsWellFormed: duplicate variant id '${v.id}'`);
