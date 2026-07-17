@@ -131,15 +131,25 @@ Forgeheart's shell cracks open. No single color runs the biome on autopilot.
 
 | Enemy | Glyph | Role | HP | R | G | B | Y | Script |
 |---|---|---|---|---|---|---|---|---|
-| Slagback Brute | 🗿 | tank / armor-plater | 260 | **0 (IMMUNE)** | 1 | **2** | 0.5 | attack 8 → armor 12 → attack 8 |
+| Slagback Brute | 🗿 | tank / armor-plater | 140 | 0.5 | 1 | **2** | 0.5 | attack 8 → armor 8 → attack 8 |
 | Cinder Imp | 👺 | fast chipper | 55 | 0.5 | 1 | 1 | **2** | attack 5 → attack 8 |
-| Forge-Tender | ⚒️ | healer / attrition support | 130 | 0.5 | **2** | 1 | 1 | attack 6 → heal 12 → attack 10 |
-| Furnace Wisp | 🔥 | glass-cannon / escalation gimmick (biome signature) | 70 | 0.5 | 1 | **2** | 0.5 | attack 4 → attack 8 → attack 12 → attack 16 → attack 20 |
+| Forge-Tender | ⚒️ | healer / attrition support | 90 | 0.5 | **2** | 1 | 1 | attack 6 → heal 6 → attack 10 |
+| Furnace Wisp | 🔥 | glass-cannon / escalation gimmick (biome signature) | 70 | 0.5 | 1 | **2** | 0.5 | attack 4 → attack 8 → attack 12 |
 
-**Slagback Brute** — *"A furnace given legs; fire is its blood, so bring water."* IMMUNE
-Red (molten slag), WEAK Blue (quench), RESIST Yellow (plating); Green normal. Steady
-pressure that periodically plates itself (`armor 12` dampens your NEXT strike). Red-immunity
-walls a fire-only build; Blue quench is the clean answer.
+> **Amended 2026-07-17 (fairness ruling — decisions.md).** Emberworks was the low-win biome
+> (30.4%); the sim wave proved the ±10pp band unreachable at its first-draft numbers. Per the
+> authorized nerf scope (smallest-change-first, favor lifting ember over nerfing others):
+> **Slagback Brute** R `0 (IMMUNE)→0.5 (RESIST)` (removes the fire-build 0-damage wall), HP `260→140`,
+> armor `12→8`; **Furnace Wisp** escalation capped `4→8→12→16→20` ⇒ `4→8→12` (venting sooner, max
+> 20→12); **Forge-Tender** HP `130→90`, self-heal `12→6`. The four authorized levers alone left ember
+> at 33.6% (spread 17.6pp), so these documented further per-biome cuts were applied; see the Forgeheart
+> amendment for the boss (the measured wall). Final: ember 47.0% at 1000 games (spread 3.5pp).
+
+**Slagback Brute** — *"A furnace given legs; fire is its blood, so bring water."* RESIST
+Red 0.5 (molten slag — *amended from IMMUNE; a fire build now chips, no longer a 0-damage
+wall*), WEAK Blue (quench), RESIST Yellow (plating); Green normal. Steady pressure that
+periodically plates itself (`armor 8` dampens your NEXT strike). Blue quench is still the
+clean answer; Red now bites at half rather than not at all.
 
 **Cinder Imp** — *"A skittering coal that bites low, then high, and never tires."* WEAK
 Yellow (a spark scatters loose coal), RESIST Red; Blue/Green normal. A low-high 5/8 flicker
@@ -149,13 +159,14 @@ you.
 
 **Forge-Tender** — *"It mends itself at the anvil faster than you can break it."* WEAK
 Green (smother/choke the ash-wraps), RESIST Red; Blue/Yellow normal. Re-tempers itself for
-12 every third turn. Only Green bursts through the mend — you out-pace it, not grind it.
-Answered by Green (not Blue), spreading the biome's answers.
+6 every third turn (*amended from 12*). Only Green bursts through the mend — you out-pace it,
+not grind it. Answered by Green (not Blue), spreading the biome's answers.
 
 **Furnace Wisp** — *"Ignore it and it swells to a white-hot roar."* WEAK Blue (quench the
 runaway heat), RESIST Red and Yellow (living heat); Green normal. The escalation enemy: a
-fully-telegraphed climb (4→8→12→16→20, then vents to 4). Low HP and Blue-weak so a clean
-quench is easy — flounder past turn 3 and it cooks you. A pure tempo/skill check.
+fully-telegraphed climb (4→8→12, then vents to 4 — *amended from 4→8→12→16→20; the cap is
+lower and it vents a turn sooner*). Low HP and Blue-weak so a clean quench is easy — flounder
+past turn 3 and it still cooks you, just less. A pure tempo/skill check.
 
 ## Boss — The Forgeheart (`forgeheart`) 🌋 — baseHp 150
 
@@ -169,9 +180,18 @@ heaviest nuke.
 
 | Phase | Name | Trigger (HP frac) | Weak | Script | Note |
 |---|---|---|---|---|---|
-| 0 | Sealed Furnace | frac > 0.66 | B ×2 (R ×0.5) | attack 12 → armor 14 → attack 16 | Plated: uses the `armor` verb (14) to force you to time your Blue burst through the plating. |
-| 1 | Cracked Core | 0.33 < frac ≤ 0.66 | R ×2 AND G ×2 (Blue merely normal) | attack 14 → attack 18 → charge → attack 26 | AFFINITY SHIFT — the shell splits. Its most vulnerable window; trades exposure for its heaviest telegraphed nuke (26). Switch off Blue and burn/choke it. Red finally matters here. |
-| 2 | Meltdown | frac ≤ 0.33 | Y ×2 only (R/B/G normal) | attack 20 → attack 24 → attack 28 | AFFINITY SHIFT — the white core; third answer color in three phases. Escalation climax: an ever-climbing 20/24/28 with no rest. Pierce the white core with light before it burns you to ash. |
+| 0 | Sealed Furnace | frac > 0.66 | B ×2 (R ×0.5) | attack 12 → armor 10 → attack 16 | Plated: uses the `armor` verb (10) to force you to time your Blue burst through the plating. |
+| 1 | Cracked Core | 0.33 < frac ≤ 0.66 | R ×2 AND G ×2 (Blue merely normal) | attack 12 → attack 14 → charge → attack 20 | AFFINITY SHIFT — the shell splits. Its most vulnerable window; trades exposure for its heaviest telegraphed nuke (20). Switch off Blue and burn/choke it. Red finally matters here. |
+| 2 | Meltdown | frac ≤ 0.33 | Y ×2 only (R/B/G normal) | attack 16 → attack 18 → attack 22 | AFFINITY SHIFT — the white core; third answer color in three phases. Escalation climax: an ever-climbing 16/18/22 with no rest. Pierce the white core with light before it burns you to ash. |
+
+> **Amended 2026-07-17 (fairness ruling — decisions.md).** Death-cause instrumentation proved the
+> **Forgeheart itself** was Emberworks' wall: a policy bot builds toward the biome answer color (Blue),
+> which the boss's color-WALK rewards ONLY in phase 0 (P1 wants R/G, P2 wants Y), so phases 1–2 are
+> fought unboosted. At 1000 games the Forgeheart killed ~2× the runs of the other biome bosses. Its
+> raw damage is eased to compensate for that build-punishing mechanic (it remains the highest-damage
+> final phase of the four bosses): P0 armor `14→10`; P1 `14/18/26 → 12/14/20`; P2 `20/24/28 → 16/18/22`.
+> baseHp stays 150 (uniform across all biome bosses); the color-walk identity is unchanged. The nuke
+> exemption (>20) is still exercised — the P2 closer is 22. This lifted ember 42.3%→47.0% (spread 8.3→3.5pp).
 
 ## Engine extensions
 
@@ -194,18 +214,28 @@ of the four kits — used as the template for the others.
 
 | Enemy | Glyph | Role | HP | R | G | B | Y | Script |
 |---|---|---|---|---|---|---|---|---|
-| Mirebark Hulk | 🪵 | tank (HP soak + self-regen) | 260 | **2** | 0.5 | 1 | 1 | attack 12 → attack 12 → heal 8 |
+| Mirebark Hulk | 🪵 | tank (HP soak + self-regen) | 160 | **2** | 0.5 | 1 | 1 | attack 12 → attack 12 → heal 5 |
 | Rotgrub Swarm | 🐛 | fast chipper (relentless + rot) | 55 | 1 | 1 | 0.5 | **2** | attack 5 → attack 5 → spore 2 |
-| Mendcap Colony | 🍄 | healer / sustain wall (burst check) | 140 | 1 | 0.5 | **2** | 1 | heal 12 → attack 6 → heal 10 → attack 6 |
+| Mendcap Colony | 🍄 | healer / sustain wall (burst check) | 120 | 1 | 0.5 | **2** | 1 | heal 6 → attack 6 → heal 6 → attack 6 |
 | Deathcap Herald | 💀 | glass cannon / gimmick (the one Green-weak enemy) | 45 | 1 | **2** | 1 | 0.5 | charge → attack 20 → spore 3 |
+
+> **Amended 2026-07-17 (fairness ruling — decisions.md).** Rotwood was the lowest-win biome (26.6%):
+> its two regen/sustain walls made every fight a long grind that bled a 60-HP player out. Per the
+> authorized nerf scope (mendcap heal ↓, mirebark HP/self-heal ↓): **Mirebark Hulk** HP `260→160`,
+> self-heal `8→5`; **Mendcap Colony** self-heal cycle `heal 12 + heal 10 (22/cycle) → heal 6 + heal 6
+> (12/cycle)`, HP `140→120` (the HP cut is a documented further change beyond the two authorized heal
+> levers). Both stay their archetype (tank-with-regen / sustain wall), just out-burstable now. This
+> lifted rotwood to 50.6% at 1000 games — the biome responded strongly because its answer color (Red)
+> is the policy bot's drafted relic, so shortening the tank fights directly shortens its strong-color grind.
 
 **Mirebark Hulk** — *"A waterlogged deadwood giant that knits its own rot back shut as fast
 as you carve it."* weak R (fire the deadwood), resist G (overgrowth feeds it). REGEN tank
 (deliberately split from Glacial's Permafrost Warden shield-grind and from a plain
-charge-nuke soak): grinds two hits then mends 8, so out-DPSing its slow regrowth IS the
+charge-nuke soak): grinds two hits then mends 5, so out-DPSing its slow regrowth IS the
 puzzle. Bring Red; do NOT dump Green. Opposite of the base skeleton (120HP resist-R/weak-B,
-charge-16): >2× the HP, weak-not-resist Red, a self-healing attrition wall. Its self-heal
-(8/cycle) is far below Mendcap's 22/cycle, so it reads as tank-with-regen, not a healer.
+charge-16): more HP, weak-not-resist Red, a self-healing attrition wall. Its self-heal
+(5/cycle) is below Mendcap's 12/cycle, so it reads as tank-with-regen, not a healer. *(HP and
+self-heal amended 2026-07-17 — see the Rotwood fairness note above.)*
 
 **Rotgrub Swarm** — *"A boiling carpet of pale grubs that eats the wounded from the ankles
 up."* weak Y (sun scorches the swarm), resist B (thrives damp). Never stops chipping and
@@ -214,9 +244,9 @@ enemy applies a lingering DoT; the swarm makes tempo/kill-speed the skill test.
 
 **Mendcap Colony** — *"A cluster of knitting-caps that stitches its own flesh faster than
 blades can part it."* weak B (rot-water drowns the colony), resist G (green light feeds it).
-Out-heals chip damage (22 self-heal per cycle) in a STEADY dribble. You must OUT-BURST its
-regen — a stall loses. Blue is the melt. Its steady dribble is shaped opposite to Glacial's
-Hoarfrost Cantor lumped burst-heal.
+Out-heals chip damage (12 self-heal per cycle — *amended from 22*) in a STEADY dribble. You
+must OUT-BURST its regen — a stall loses. Blue is the melt. Its steady dribble is shaped
+opposite to Glacial's Hoarfrost Cantor lumped burst-heal.
 
 **Deathcap Herald** — *"A gaunt violet cap that inhales, then exhales a killing bloom."*
 weak G (over-lush growth overloads it), resist Y — the ONLY place Green shines in the
@@ -356,9 +386,10 @@ Enemy swapped via `CombatState.enemy` override, intent reset to `script[0]`.
 | `rotStacks` in `RelicContext` | context field | Rotwood (relics) | `rotStacks?: number` | n/a |
 | `curse` boss-scaling guard | scaling rule | Sunken Catacombs | — | n/a |
 
-**Feasibility bounds confirmed (see `content-audit-log.md`):** every affinity table uses
-valid tiers over R/G/B/Y; all enemy HP 45–260 (within 40–300); all bosses baseHp 150
-(within 120–160); all heals 6–12 (within 4–12). The ONLY stat-bound breach is boss
-telegraphed nukes exceeding `atk ≤ 20` (7 instances: Rimeheart 22/28, Forgeheart 26/24/28,
-Rotmother 24, Vael 26/24) — ruled boss-exempt, consistent with the existing Bone Colossus
-precedent; all regular enemy attacks stay ≤ 20.
+**Feasibility bounds confirmed (see `content-audit-log.md`; re-checked after the 2026-07-17
+fairness amendment):** every affinity table uses valid tiers over R/G/B/Y; all enemy HP 45–260
+(within 40–300); all bosses baseHp 150 (within 120–160); all heals 5–12 (within 4–12 — the
+floor moved to 5 with the Mirebark Hulk self-heal cut). The ONLY stat-bound breach is boss
+telegraphed nukes exceeding `atk ≤ 20` (now 6 instances after the Forgeheart ease: Rimeheart
+22/28, Forgeheart 22, Rotmother 24, Vael 26/24) — ruled boss-exempt, consistent with the
+existing Bone Colossus precedent; all regular enemy attacks stay ≤ 20.

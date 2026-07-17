@@ -76,9 +76,13 @@ export type {
 // Run policy bot (routing heuristic + one-transition stepper) + combat path chooser.
 export {
   ROUTE_HURT_HP_FRACTION,
+  ROUTE_ACT2_HURT_HP_FRACTION,
   ROUTE_HEALTHY_HP_FRACTION,
   combatPathFor,
   choosePolicyRoute,
+  choosePolicyDraft,
+  affinityComboPath,
+  affinityCombatPath,
   stepRunBot,
 } from './runBot';
 

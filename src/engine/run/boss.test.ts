@@ -31,9 +31,10 @@ describe('boss phase data', () => {
 });
 
 describe('bossMaxHp — ~120 HP ramp-scaled', () => {
-  it('scales the base 120 by the dampened boss-floor ramp (floor 12 ⇒ 185)', () => {
-    // difficultyAt(12)=2.8 ⇒ 1 + (1.8×0.3) = 1.54 ⇒ round(120×1.54 = 184.8) = 185
-    expect(bossMaxHp(12)).toBe(185);
+  it('scales the base 120 by the dampened boss-floor ramp (floor 12 ⇒ 168)', () => {
+    // STAGE-6 RETUNE: BOSS_HP_DAMPEN 0.3→0.22. difficultyAt(12)=2.8 ⇒ 1 + (1.8×0.22) = 1.396 ⇒
+    // round(120×1.396 = 167.52) = 168
+    expect(bossMaxHp(12)).toBe(168);
   });
 
   it('is ~120 at floor 0', () => {

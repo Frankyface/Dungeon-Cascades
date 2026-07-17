@@ -32,9 +32,9 @@ describe('playRun — extra balance telemetry', () => {
     const vanilla = playAt(0);
     expect(vanilla.gold).toBe(vanilla.goldEarned! - vanilla.goldSpent!);
 
-    // Merchant's Purse starts with +55 gold; the same identity holds with that offset.
+    // Merchant's Purse starts with +70 gold (STAGE-6 rework: burst 55→70); the identity holds.
     const merchant = playAt(0, 'merchants-purse');
-    expect(merchant.gold).toBe(55 + merchant.goldEarned! - merchant.goldSpent!);
+    expect(merchant.gold).toBe(70 + merchant.goldEarned! - merchant.goldSpent!);
   });
 });
 

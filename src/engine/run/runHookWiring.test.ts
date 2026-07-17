@@ -113,12 +113,13 @@ describe('onCascadeWave GOLD is banked once at the run layer, never double-appli
 
 describe('onActStart fires in advanceAct (the act transition)', () => {
   it('banks the onActStart gold + capped heal on top of the transition heal', () => {
-    // Base transition: heal 50% of max. pathfinders-map: +20 gold; wayfarers-draught: +12 heal.
-    const base: RunState = { ...startRun(42), playerHp: 5, gold: 0, phase: { kind: 'act_transition' } };
+    // Base transition: heal 75% of max (STAGE-6 retune). pathfinders-map: +20 gold; wayfarers: +12 heal.
+    // Start low (HP 1) so the bigger transition heal + the relic heal stay UNCAPPED (the test's intent).
+    const base: RunState = { ...startRun(42), playerHp: 1, gold: 0, phase: { kind: 'act_transition' } };
     const plain = advanceAct(base);
     const withRelics = advanceAct({ ...base, relicIds: ['pathfinders-map', 'wayfarers-draught'] });
     expect(withRelics.gold - plain.gold).toBe(20); // pathfinders-map
-    expect(withRelics.playerHp - plain.playerHp).toBe(12); // wayfarers-draught (5 + 30 + 12 = 47, uncapped)
+    expect(withRelics.playerHp - plain.playerHp).toBe(12); // wayfarers-draught (1 + 45 + 12 = 58, uncapped)
   });
 });
 

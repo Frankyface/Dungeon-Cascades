@@ -154,7 +154,8 @@ describe('act transition (Act 1 → Act 2)', () => {
     const atTransition: RunState = { ...s0, playerHp: 10, phase: { kind: 'act_transition' } };
     const after = advanceAct(atTransition);
     expect(after.act).toBe(2);
-    expect(after.playerHp).toBe(Math.min(60, 10 + Math.round(60 * 0.5))); // 10 + 30 = 40
+    // STAGE-6 RETUNE: ACT_TRANSITION_HEAL_FRACTION 0.5→0.75.
+    expect(after.playerHp).toBe(Math.min(60, 10 + Math.round(60 * 0.75))); // 10 + 45 = 55
     expect(after.phase.kind).toBe('awaiting_node');
     expect(after.mapState.currentNodeId).toBe(after.map.startId);
     // A NEW map (independent Act-2 layout stream) replaces the Act-1 map.

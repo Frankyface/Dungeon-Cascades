@@ -69,7 +69,7 @@ export const FORGEHEART: Boss = {
       affinity: { B: AFFINITY_WEAK, R: AFFINITY_RESIST },
       script: [
         { type: 'attack', value: 12 },
-        { type: 'armor', value: 14 },
+        { type: 'armor', value: 10 },
         { type: 'attack', value: 16 },
       ],
     },
@@ -77,19 +77,19 @@ export const FORGEHEART: Boss = {
       name: 'Cracked Core',
       affinity: { R: AFFINITY_WEAK, G: AFFINITY_WEAK },
       script: [
+        { type: 'attack', value: 12 },
         { type: 'attack', value: 14 },
-        { type: 'attack', value: 18 },
         { type: 'charge', value: 0 },
-        { type: 'attack', value: 26 },
+        { type: 'attack', value: 20 },
       ],
     },
     {
       name: 'Meltdown',
       affinity: { Y: AFFINITY_WEAK },
       script: [
-        { type: 'attack', value: 20 },
-        { type: 'attack', value: 24 },
-        { type: 'attack', value: 28 },
+        { type: 'attack', value: 16 },
+        { type: 'attack', value: 18 },
+        { type: 'attack', value: 22 },
       ],
     },
   ],

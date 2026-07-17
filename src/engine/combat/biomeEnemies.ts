@@ -85,11 +85,11 @@ export const BIOME_ENEMY_STATS: Record<BiomeEnemyId, EnemyStats> = {
 
   // ── 2. The Emberworks (Blue-quench + armor plating) ────────────────────────────────────
   'slagback-brute': {
-    maxHp: 260,
-    affinity: { R: AFFINITY_IMMUNE, B: AFFINITY_WEAK, Y: AFFINITY_RESIST },
+    maxHp: 140,
+    affinity: { R: AFFINITY_RESIST, B: AFFINITY_WEAK, Y: AFFINITY_RESIST },
     script: [
       { type: 'attack', value: 8 },
-      { type: 'armor', value: 12 },
+      { type: 'armor', value: 8 },
       { type: 'attack', value: 8 },
     ],
     biome: 'emberworks',
@@ -104,11 +104,11 @@ export const BIOME_ENEMY_STATS: Record<BiomeEnemyId, EnemyStats> = {
     biome: 'emberworks',
   },
   'forge-tender': {
-    maxHp: 130,
+    maxHp: 90,
     affinity: { R: AFFINITY_RESIST, G: AFFINITY_WEAK },
     script: [
       { type: 'attack', value: 6 },
-      { type: 'heal', value: 12 },
+      { type: 'heal', value: 6 },
       { type: 'attack', value: 10 },
     ],
     biome: 'emberworks',
@@ -120,20 +120,18 @@ export const BIOME_ENEMY_STATS: Record<BiomeEnemyId, EnemyStats> = {
       { type: 'attack', value: 4 },
       { type: 'attack', value: 8 },
       { type: 'attack', value: 12 },
-      { type: 'attack', value: 16 },
-      { type: 'attack', value: 20 },
     ],
     biome: 'emberworks',
   },
 
   // ── 3. The Rotwood (Green-trap DoT + regen) ────────────────────────────────────────────
   'mirebark-hulk': {
-    maxHp: 260,
+    maxHp: 160,
     affinity: { R: AFFINITY_WEAK, G: AFFINITY_RESIST },
     script: [
       { type: 'attack', value: 12 },
       { type: 'attack', value: 12 },
-      { type: 'heal', value: 8 },
+      { type: 'heal', value: 5 },
     ],
     biome: 'rotwood',
   },
@@ -148,12 +146,12 @@ export const BIOME_ENEMY_STATS: Record<BiomeEnemyId, EnemyStats> = {
     biome: 'rotwood',
   },
   'mendcap-colony': {
-    maxHp: 140,
+    maxHp: 120,
     affinity: { G: AFFINITY_RESIST, B: AFFINITY_WEAK },
     script: [
-      { type: 'heal', value: 12 },
+      { type: 'heal', value: 6 },
       { type: 'attack', value: 6 },
-      { type: 'heal', value: 10 },
+      { type: 'heal', value: 6 },
       { type: 'attack', value: 6 },
     ],
     biome: 'rotwood',

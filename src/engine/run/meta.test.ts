@@ -100,9 +100,11 @@ describe('runScoreInput — derived from a terminal RunState (R2: cumulative acr
   });
 
   it('a mid-ACT-2 DEFEAT credits Act 1 cumulatively (R2 cross-act banking)', () => {
-    // Seed 5 clears Act 1, then dies in an Act-2 fight/elite. Its banked score MUST include Act 1
+    // Seed 18 clears Act 1, then dies in an Act-2 fight/elite. Its banked score MUST include Act 1
     // (both its floors, via the global offset, and its encounters, via `priorActsEncountersWon`).
-    const state = driveRun(startRun(5), greedyComboPath).state;
+    // STAGE-6 RETUNE: re-pointed seed 5→18 — the eased Act-2 constants let seed 5 now WIN, so a fresh
+    // seed that still dies mid-Act-2 with the color-blind greedyComboPath was selected for the scenario.
+    const state = driveRun(startRun(18), greedyComboPath).state;
     const diedInType = nodeById(state.map, state.mapState.currentNodeId).type;
     expect(state.status).toBe('defeat');
     expect(state.act).toBe(2);

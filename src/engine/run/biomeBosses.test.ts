@@ -67,10 +67,12 @@ const BOSS_SPEC: ReadonlyArray<readonly [Boss, readonly PhaseSpec[]]> = [
     [{ B: AFFINITY_WEAK, Y: AFFINITY_RESIST }, [{ type: 'frostArmor', value: 12 }, { type: 'attack', value: 15 }, { type: 'charge', value: 0 }, { type: 'attack', value: 22 }]],
     [{ B: AFFINITY_WEAK, Y: AFFINITY_WEAK }, [{ type: 'charge', value: 0 }, { type: 'attack', value: 28 }, { type: 'attack', value: 18 }]],
   ]],
+  // Forgeheart damage eased (fairness amendment 2026-07-17): it was Emberworks' wall for a mono-Blue
+  // build (its color-walk rewards Blue only in P0). P0 armor 14→10; P1 14/18/26→12/14/20; P2 20/24/28→16/18/22.
   [FORGEHEART, [
-    [{ B: AFFINITY_WEAK, R: AFFINITY_RESIST }, [{ type: 'attack', value: 12 }, { type: 'armor', value: 14 }, { type: 'attack', value: 16 }]],
-    [{ R: AFFINITY_WEAK, G: AFFINITY_WEAK }, [{ type: 'attack', value: 14 }, { type: 'attack', value: 18 }, { type: 'charge', value: 0 }, { type: 'attack', value: 26 }]],
-    [{ Y: AFFINITY_WEAK }, [{ type: 'attack', value: 20 }, { type: 'attack', value: 24 }, { type: 'attack', value: 28 }]],
+    [{ B: AFFINITY_WEAK, R: AFFINITY_RESIST }, [{ type: 'attack', value: 12 }, { type: 'armor', value: 10 }, { type: 'attack', value: 16 }]],
+    [{ R: AFFINITY_WEAK, G: AFFINITY_WEAK }, [{ type: 'attack', value: 12 }, { type: 'attack', value: 14 }, { type: 'charge', value: 0 }, { type: 'attack', value: 20 }]],
+    [{ Y: AFFINITY_WEAK }, [{ type: 'attack', value: 16 }, { type: 'attack', value: 18 }, { type: 'attack', value: 22 }]],
   ]],
   [THE_ROTMOTHER, [
     [{ R: AFFINITY_WEAK }, [{ type: 'spore', value: 3 }, { type: 'attack', value: 10 }, { type: 'heal', value: 8 }, { type: 'attack', value: 12 }]],
@@ -137,30 +139,32 @@ describe('boss feasibility bounds — the ≤28 nuke exemption (decisions.md 202
 });
 
 describe('bossMaxHpFor — base-150 bosses ramp on the boss-floor curve', () => {
-  it('is 150 at floor 0 and scales with the dampened ramp (floor 12 ⇒ 231)', () => {
+  it('is 150 at floor 0 and scales with the dampened ramp (floor 12 ⇒ 209)', () => {
     expect(bossMaxHpFor(150, 0)).toBe(150);
-    // difficultyAt(12)=2.8 ⇒ 1 + (1.8×0.3)=1.54 ⇒ round(150×1.54=231)=231
-    expect(bossMaxHpFor(150, 12)).toBe(231);
+    // STAGE-6 RETUNE: BOSS_HP_DAMPEN 0.3→0.22. difficultyAt(12)=2.8 ⇒ 1 + (1.8×0.22)=1.396 ⇒
+    // round(150×1.396=209.4)=209
+    expect(bossMaxHpFor(150, 12)).toBe(209);
   });
 });
 
 describe('boss scaling — curse is NON-scaling (turn count); other verbs scale like attack', () => {
-  it('Vael: curse value is unchanged at deep floors while attacks/heals scale (atkMult 1.15 @ diff 2.0)', () => {
-    const scaled = bossEnemyForPhaseOf(DROWNED_SOVEREIGN, 0, 231, 2.0); // atkMult = 1 + (2.0−1)·0.15 = 1.15
-    expect(scaled.script[0]).toEqual({ type: 'attack', value: 14 }); // round(12 × 1.15) = 14
+  it('Vael: curse value is unchanged at deep floors while attacks/heals scale (atkMult 1.10 @ diff 2.0)', () => {
+    // STAGE-6 RETUNE: ATTACK_DIFFICULTY_DAMPEN 0.15→0.10.
+    const scaled = bossEnemyForPhaseOf(DROWNED_SOVEREIGN, 0, 209, 2.0); // atkMult = 1 + (2.0−1)·0.10 = 1.10
+    expect(scaled.script[0]).toEqual({ type: 'attack', value: 13 }); // round(12 × 1.10 = 13.2) = 13
     expect(scaled.script[1]).toEqual({ type: 'curse', value: 2 }); // UNCHANGED — turn count, not damage
-    expect(scaled.script[2]).toEqual({ type: 'heal', value: 12 }); // round(10 × 1.15) = 12
+    expect(scaled.script[2]).toEqual({ type: 'heal', value: 11 }); // round(10 × 1.10) = 11
   });
 
   it('Rimeheart frostArmor DOES scale by atkMult; Rotmother spore does NOT (R1: spore never scales)', () => {
-    const rime = bossEnemyForPhaseOf(RIMEHEART, 0, 231, 3.0); // atkMult = 1 + 2·0.15 = 1.3
-    expect(rime.script[0]).toEqual({ type: 'frostArmor', value: 23 }); // round(18 × 1.3) = 23 (amount, scales)
+    const rime = bossEnemyForPhaseOf(RIMEHEART, 0, 209, 3.0); // atkMult = 1 + 2·0.10 = 1.2
+    expect(rime.script[0]).toEqual({ type: 'frostArmor', value: 22 }); // round(18 × 1.2 = 21.6) = 22 (amount, scales)
     // decisions.md 2026-07-17 R1: spore is a STACK COUNT and NEVER scales — the Rotmother's phase-3
-    // opener stays at its base value 4 at every floor (was round(4 × 1.3) = 5 before the no-scale guard).
-    const rot = bossEnemyForPhaseOf(THE_ROTMOTHER, 2, 231, 3.0);
+    // opener stays at its base value 4 at every floor (would be round(4 × 1.2) = 5 without the guard).
+    const rot = bossEnemyForPhaseOf(THE_ROTMOTHER, 2, 209, 3.0);
     expect(rot.script[0]).toEqual({ type: 'spore', value: 4 }); // UNCHANGED — stacks are stacks
     // Its neighbouring attacks still scale (guard is spore-specific, not a phase-wide freeze).
-    expect(rot.script[1]).toEqual({ type: 'attack', value: 23 }); // round(18 × 1.3) = 23
+    expect(rot.script[1]).toEqual({ type: 'attack', value: 22 }); // round(18 × 1.2 = 21.6) = 22
     expect(rot.script[3]).toEqual({ type: 'spore', value: 4 }); // the phase's closing spore also stays base
   });
 

@@ -99,17 +99,21 @@ describe('describeVariantModifiers — derived from engine modifiers', () => {
   });
 
   it('summarizes the gold-loan variant (gold boon, max-HP bane)', () => {
+    // STAGE-6 role rework re-record: Merchant's Purse is now +70 gold / −7 max HP (was +55 / −5).
     const lines = describeVariantModifiers(getVariant('merchants-purse').modifiers);
     expect(lines).toEqual([
-      { kind: 'gold', label: '+55 starting gold', detail: null, tone: 'boon' },
-      { kind: 'maxHp', label: '-5 max HP', detail: null, tone: 'bane' },
+      { kind: 'gold', label: '+70 starting gold', detail: null, tone: 'boon' },
+      { kind: 'maxHp', label: '-7 max HP', detail: null, tone: 'bane' },
     ]);
   });
 
-  it('summarizes the map-reveal variant (max-HP cost, then the reveal aid)', () => {
+  it('summarizes the map-reveal variant (economy relic, max-HP cost, then the reveal aid)', () => {
+    // STAGE-6 rework re-record: Cartographer was sim-inert; it now grants Miser's Knuckle (+25% gold)
+    // and costs −6 max HP alongside the map reveal (variants.ts / content-roles.md).
     const lines = describeVariantModifiers(getVariant('cartographer').modifiers);
     expect(lines).toEqual([
-      { kind: 'maxHp', label: '-4 max HP', detail: null, tone: 'bane' },
+      { kind: 'relic', label: getRelic('misers-knuckle').name, detail: '+25% gold', tone: 'boon' },
+      { kind: 'maxHp', label: '-6 max HP', detail: null, tone: 'bane' },
       { kind: 'map', label: 'Full map revealed', detail: null, tone: 'boon' },
     ]);
   });

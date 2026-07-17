@@ -77,38 +77,36 @@ describe('balance report — determinism (byte-identical stdout)', () => {
 });
 
 describe('balance report — fixed-seed pin (drift guard; games 8, seed 42)', () => {
-  // RE-RECORDED 2026-07-17 for the TWO-ACT structure (Stage-6 wave 1c) from a real run of
-  // `--mode report --games 8 --seed 42`. A win now requires clearing both acts, so the win rates
-  // dropped sharply (vanilla 37.5%→12.5%). At N=8 one flipped run moves a rate by 12.5pp, so
-  // PASS/FAIL here is sampling NOISE, NOT balance signal — the real ±5pp purity gate (spec §9) is
-  // the sim-tuning wave's job over 1000+ runs. This pin only locks the current output so ANY drift
-  // in the engine, policy, a variant number, or the formatting fails `npm test` loudly. If a
-  // legitimate, authorized change moves these values, re-record them and log why (never fake them).
+  // RE-RECORDED by the STAGE-6 BALANCE-TUNING wave from a real `--mode report --games 8 --seed 42`
+  // AFTER the affinity-aware policy bot + the eased Act-2 constants + the role recalibration. The win
+  // rate is now band-centered (vanilla 37.5% at N=8). At N=8 one flipped run moves a rate by 12.5pp,
+  // so PASS/FAIL HERE is sampling NOISE, NOT the balance signal — the real ±5pp purity gate (spec §9)
+  // is measured over 1000+ runs (see the balance-tuning wave's report: all six roles in band there).
+  // This pin only locks the current output so ANY drift in the engine, policy, a variant number, or
+  // the formatting fails `npm test` loudly. If an authorized change moves these values, re-record and
+  // log why (never fake them).
   it('reproduces the recorded report lines byte-for-byte', () => {
     const text = formatBalanceReport(report);
-    expect(text).toContain('Vanilla win rate: 12.5%');
-    expect(text).toContain('  vanilla             12.5       —  —    (baseline)');
-    expect(text).toContain('  cartographer        12.5    +0.0  PASS');
-    expect(text).toContain('  ember-start          0.0   -12.5  FAIL');
-    expect(text).toContain('  merchants-purse      0.0   -12.5  FAIL');
-    expect(text).toContain('  vitality-pact        0.0   -12.5  FAIL');
-    expect(text).toContain('  ironhide             0.0   -12.5  FAIL');
-    expect(text).toContain('  glass-cannon         0.0   -12.5  FAIL');
-    // R2 (decisions.md 2026-07-17): cumulative cross-act scoring raised the `score` column
-    // (vanilla 17.6→31.5, ironhide 19.0→32.9). ALTAR (spec §2c) then re-routed the winning runs
-    // around an altar into different fights, shifting mvMed (vanilla 127→134) and the gold-earned
-    // means (vanilla 209.9→205.3, ironhide 247.4→242.9); win%, boss%, and encMed are unchanged.
-    // Re-recorded from `--mode report --games 8 --seed 42`.
-    expect(text).toContain('  vanilla            12.5   37.5    22.0  134.0    31.5   205.3     3.1');
-    expect(text).toContain('  ironhide            0.0   62.5     0.0    0.0    32.9   242.9     5.6');
-    expect(text).toContain('  fight:skeleton        3 (42.9%)');
-    expect(text).toContain('  bulwark-rune              7    14.3    +1.8');
-    expect(text).toContain('  misers-knuckle            3    33.3   +20.8');
+    expect(text).toContain('Vanilla win rate: 37.5%');
+    expect(text).toContain('  vanilla             37.5       —  —    (baseline)');
+    expect(text).toContain('  cartographer        37.5    +0.0  PASS');
+    expect(text).toContain('  ember-start         50.0   +12.5  FAIL');
+    expect(text).toContain('  merchants-purse     50.0   +12.5  FAIL');
+    expect(text).toContain('  vitality-pact       50.0   +12.5  FAIL');
+    expect(text).toContain('  ironhide            50.0   +12.5  FAIL');
+    expect(text).toContain('  glass-cannon        50.0   +12.5  FAIL');
+    // N=8 noise: the small batch happens to over-count variant wins (this is why the real gate is
+    // 1000 runs). Stat rows re-recorded from the same run.
+    expect(text).toContain('  vanilla            37.5   62.5    22.0  114.0    46.4   305.4     0.0');
+    expect(text).toContain('  ironhide           50.0   75.0    21.5   91.5    60.8   446.9     0.0');
+    expect(text).toContain('  boss                  2 (40.0%)');
+    expect(text).toContain('  bulwark-rune              6    50.0   +12.5');
+    expect(text).toContain('  misers-knuckle            4    75.0   +37.5');
   });
 
   it('pins the recorded win rates as raw values', () => {
-    expect(report.vanillaWinRatePct).toBe(12.5);
-    expect(report.rows.map((r) => r.winRatePct)).toEqual([12.5, 12.5, 0, 0, 0, 0, 0]);
+    expect(report.vanillaWinRatePct).toBe(37.5);
+    expect(report.rows.map((r) => r.winRatePct)).toEqual([37.5, 37.5, 50, 50, 50, 50, 50]);
   });
 });
 

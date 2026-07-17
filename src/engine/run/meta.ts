@@ -101,21 +101,19 @@ export function scoreForRun(state: RunState): number {
 
 // ── Unlock tranches (cumulative-score milestones → variant unlocks) ───────────────────
 //
-// PACING ARITHMETIC (feature-meta-variants.md target: first unlock ~2–3 runs, full slate
-// ~15–20 runs). R2 RE-DERIVATION (decisions.md 2026-07-17): with CUMULATIVE cross-act scoring a
-// 2-act run now banks BOTH acts' floors+encounters, so the vanilla policy-bot mean rose from the
-// old ≈20/run to ≈31.6/run (measured N=1000, seed 42, at the CURRENT untuned two-act balance:
-// win rate ~7%). At that mean the thresholds below fire at:
-//   T1  50 → ~1.6 runs     T4 210 → ~6.6 runs
-//   T2 100 → ~3.2 runs     T5 290 → ~9.2 runs
-//   T3 150 → ~4.7 runs     T6 360 → ~11.4 runs
-// i.e. the first unlock still lands early but the full slate now completes faster than the 15–20
-// window. The thresholds are the SIM-TUNING surface and are LEFT UNCHANGED this wave on purpose:
-// the two-act win rate is still far below the spec §9 20–60% band, and lifting it there (the
-// balance-tuning wave's job) will raise the mean AGAIN (victories add the +10 bonus + more
-// cumulative encounters). Final tranche calibration therefore rides WITH the win-rate band re-tune,
-// exactly like the run-sim balance BANDS are deferred to that wave (runSim.test.ts). Re-derive the
-// thresholds against the tuned mean at that point.
+// PACING ARITHMETIC (feature-meta-variants.md target: first unlock ~2–3 runs, full slate ~15–20
+// runs). STAGE-6 BALANCE-TUNE RE-DERIVATION: with the win rate lifted into the spec §9 band, the
+// vanilla policy-bot's mean CUMULATIVE (R2) run score was re-measured at the FINAL locked constants
+// = 51.77/run (N=1000, seed 42, win rate 38.8%). Banking is per-run cumulative (wins AND losses
+// bank), so tranche T fires after ≈ T/51.77 runs. Re-derived thresholds (= runs × 51.77, rounded):
+//   T1 130 → 2.5 runs   (target ~2–3: first unlock lands early)
+//   T2 260 → 5.0 runs
+//   T3 400 → 7.7 runs
+//   T4 545 → 10.5 runs
+//   T5 700 → 13.5 runs
+//   T6 880 → 17.0 runs  (target ~15–20: full slate completes in-window)
+// First unlock at 2.5 runs and the full slate at 17.0 runs both sit inside the documented pacing
+// windows. The thresholds remain the SIM-TUNING surface — re-derive again if the balance changes.
 
 /** One unlock milestone: cross `score` (cumulative) and `variantId` becomes available. */
 export interface UnlockTranche {
@@ -125,12 +123,12 @@ export interface UnlockTranche {
 
 /** The six milestones, ascending, one per variant in canonical (VARIANTS) order. */
 export const UNLOCK_TRANCHES: readonly UnlockTranche[] = [
-  { score: 50, variantId: VARIANT_IDS[0] },
-  { score: 100, variantId: VARIANT_IDS[1] },
-  { score: 150, variantId: VARIANT_IDS[2] },
-  { score: 210, variantId: VARIANT_IDS[3] },
-  { score: 290, variantId: VARIANT_IDS[4] },
-  { score: 360, variantId: VARIANT_IDS[5] },
+  { score: 130, variantId: VARIANT_IDS[0] },
+  { score: 260, variantId: VARIANT_IDS[1] },
+  { score: 400, variantId: VARIANT_IDS[2] },
+  { score: 545, variantId: VARIANT_IDS[3] },
+  { score: 700, variantId: VARIANT_IDS[4] },
+  { score: 880, variantId: VARIANT_IDS[5] },
 ];
 
 // ── MetaState + operations ────────────────────────────────────────────────────────────

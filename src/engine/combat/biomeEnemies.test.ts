@@ -54,28 +54,32 @@ const SPEC: ReadonlyArray<
     { type: 'frostArmor', value: 14 }, { type: 'charge', value: 0 }, { type: 'attack', value: 18 },
   ]],
   // Emberworks
-  ['slagback-brute', 260, { R: AFFINITY_IMMUNE, B: AFFINITY_WEAK, Y: AFFINITY_RESIST }, [
-    { type: 'attack', value: 8 }, { type: 'armor', value: 12 }, { type: 'attack', value: 8 },
+  // Slagback R IMMUNE→RESIST, HP 260→140, armor 12→8 (fairness amendment 2026-07-17).
+  ['slagback-brute', 140, { R: AFFINITY_RESIST, B: AFFINITY_WEAK, Y: AFFINITY_RESIST }, [
+    { type: 'attack', value: 8 }, { type: 'armor', value: 8 }, { type: 'attack', value: 8 },
   ]],
   ['cinder-imp', 55, { R: AFFINITY_RESIST, Y: AFFINITY_WEAK }, [
     { type: 'attack', value: 5 }, { type: 'attack', value: 8 },
   ]],
-  ['forge-tender', 130, { R: AFFINITY_RESIST, G: AFFINITY_WEAK }, [
-    { type: 'attack', value: 6 }, { type: 'heal', value: 12 }, { type: 'attack', value: 10 },
+  // Forge-Tender HP 130→90, heal 12→6 (fairness amendment 2026-07-17).
+  ['forge-tender', 90, { R: AFFINITY_RESIST, G: AFFINITY_WEAK }, [
+    { type: 'attack', value: 6 }, { type: 'heal', value: 6 }, { type: 'attack', value: 10 },
   ]],
+  // Furnace-Wisp escalation capped 4→8→12→16→20 ⇒ 4→8→12 (fairness amendment 2026-07-17).
   ['furnace-wisp', 70, { R: AFFINITY_RESIST, B: AFFINITY_WEAK, Y: AFFINITY_RESIST }, [
     { type: 'attack', value: 4 }, { type: 'attack', value: 8 }, { type: 'attack', value: 12 },
-    { type: 'attack', value: 16 }, { type: 'attack', value: 20 },
   ]],
   // Rotwood
-  ['mirebark-hulk', 260, { R: AFFINITY_WEAK, G: AFFINITY_RESIST }, [
-    { type: 'attack', value: 12 }, { type: 'attack', value: 12 }, { type: 'heal', value: 8 },
+  // Mirebark-Hulk HP 260→160, self-heal 8→5 (fairness amendment 2026-07-17).
+  ['mirebark-hulk', 160, { R: AFFINITY_WEAK, G: AFFINITY_RESIST }, [
+    { type: 'attack', value: 12 }, { type: 'attack', value: 12 }, { type: 'heal', value: 5 },
   ]],
   ['rotgrub-swarm', 55, { B: AFFINITY_RESIST, Y: AFFINITY_WEAK }, [
     { type: 'attack', value: 5 }, { type: 'attack', value: 5 }, { type: 'spore', value: 2 },
   ]],
-  ['mendcap-colony', 140, { G: AFFINITY_RESIST, B: AFFINITY_WEAK }, [
-    { type: 'heal', value: 12 }, { type: 'attack', value: 6 }, { type: 'heal', value: 10 }, { type: 'attack', value: 6 },
+  // Mendcap-Colony HP 140→120, heal cycle 12+10 (22)→6+6 (12) (fairness amendment 2026-07-17).
+  ['mendcap-colony', 120, { G: AFFINITY_RESIST, B: AFFINITY_WEAK }, [
+    { type: 'heal', value: 6 }, { type: 'attack', value: 6 }, { type: 'heal', value: 6 }, { type: 'attack', value: 6 },
   ]],
   ['deathcap-herald', 45, { G: AFFINITY_WEAK, Y: AFFINITY_RESIST }, [
     { type: 'charge', value: 0 }, { type: 'attack', value: 20 }, { type: 'spore', value: 3 },
@@ -110,11 +114,17 @@ describe('biome-enemy fidelity — exact spec numbers per enemy', () => {
     expect(SPEC.map((r) => r[0]).sort()).toEqual([...BIOME_ENEMY_IDS].sort());
   });
 
-  it('affinity lookups default unlisted colors to normal 1.0 (e.g. Slagback R immune, G normal)', () => {
+  it('affinity lookups default unlisted colors to normal 1.0 (e.g. Slagback R resist, G normal)', () => {
     const slag = getBiomeEnemy('slagback-brute');
-    expect(biomeAffinityFor(slag, 'R')).toBe(0.0); // immune
+    expect(biomeAffinityFor(slag, 'R')).toBe(0.5); // resist (amended from immune 0.0, 2026-07-17)
     expect(biomeAffinityFor(slag, 'B')).toBe(2.0); // weak
     expect(biomeAffinityFor(slag, 'G')).toBe(1.0); // normal (unlisted)
+  });
+
+  it('Corpsefire Wisp still exercises the IMMUNE tier (Blue does nothing)', () => {
+    const corpse = getBiomeEnemy('corpsefire-wisp');
+    expect(biomeAffinityFor(corpse, 'B')).toBe(0.0); // immune — the remaining IMMUNE user post-amendment
+    expect(biomeAffinityFor(corpse, 'Y')).toBe(2.0); // weak
   });
 });
 

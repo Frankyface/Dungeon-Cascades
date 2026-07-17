@@ -8,13 +8,13 @@
  * the default run/economy/map config; if the config or engine legitimately changes, re-record
  * them and note why in the Verification Log (never fake a fixture to a formula).
  *
- * TWO-ACT RE-DERIVATION (Stage-6 wave 1c): these pins were RE-RECORDED for the new two-act reality
- * — a victory now requires clearing BOTH acts, so completed runs span ~22 encounters / ~128 moves,
- * and the policy win rate falls well below the old single-act numbers. These are RUN-DERIVED
- * regression pins (recorded actuals), NOT design targets: the spec balance BANDS (win rate 20–60%,
- * per-biome fairness, act-1-boss-reached ≥40%) are the SIM-TUNING wave's gate, not this one. This
- * wave proves STRUCTURAL INTEGRITY + DETERMINISM: zero wedges, every run terminates, both outcomes
- * reachable across both acts, policy strictly out-wins the trivial control.
+ * STAGE-6 BALANCE-TUNE RE-RECORD: these pins were re-recorded a SECOND time by the balance-tuning
+ * wave after (a) upgrading the policy bot to the affinity-aware combat scorer and (b) easing the
+ * Act-2 difficulty constants to the spec §9 win-rate band. On this 24-run batch the policy now wins
+ * 7/24; the FULL band verification (win rate 20–60%, act-1-boss ≥40%, 0 wedges, biome fairness) is
+ * measured separately at 1000 games (see the balance-tuning wave's report). These remain RUN-DERIVED
+ * regression pins (recorded actuals), and this test proves STRUCTURAL INTEGRITY + DETERMINISM: zero
+ * wedges, every run terminates, both outcomes reachable, policy strictly out-wins the trivial control.
  *
  * The batch is driven ONCE in beforeAll (the greedy DFS is compute-heavy) and every assertion reads
  * the shared summary.
@@ -50,50 +50,52 @@ beforeAll(() => {
 
 describe('full-run sim — policy fixed-seed regression (24 runs, seed 42, TWO-ACT)', () => {
   it('posts the recorded outcome counts (victories / defeats / wedges)', () => {
-    expect(policy.victories).toBe(2);
-    expect(policy.defeats).toBe(22);
+    // STAGE-6 BALANCE-TUNE RE-RECORD: the affinity-aware policy bot + the eased Act-2 difficulty
+    // constants (spec §9 win-rate retune) lift the win rate from ~2/24 to 7/24 on this batch.
+    expect(policy.victories).toBe(7);
+    expect(policy.defeats).toBe(17);
     expect(policy.wedges).toBe(0);
     expect(policy.victories + policy.defeats + policy.wedges).toBe(BATCH);
-    expect(policy.bossReachedCount).toBe(13); // reached the Act-1 boss in 13/24 runs
+    expect(policy.bossReachedCount).toBe(14); // reached the Act-1 boss in 14/24 runs
   });
 
   it('posts the recorded completed-run encounter and move bands (both acts)', () => {
-    // A completed run now spans BOTH acts (~22 encounters, ~132 moves) — the old single-act
-    // 8–12 / 30–90 bands no longer describe a full run; these are the recorded two-act actuals.
-    // ALTAR RE-RECORD (Stage-6 wave 2): adding the Altar node (spec §2c) re-routed the two winning
-    // runs around an altar into different fights — SAME encounter count (22) but different turn
-    // counts, so the completed-MOVES band shifted 127/128.5/130 → 130/132/134 (encounters unchanged).
-    expect(policy.encMinCompleted).toBe(22);
+    // A completed run spans BOTH acts (~22 encounters). STAGE-6 RE-RECORD: with the affinity bot
+    // hitting weaknesses, winning runs finish combats in far fewer moves than the old color-blind
+    // bot. FAIRNESS-AMENDMENT RE-RECORD (2026-07-17): the ember/rotwood enemy + Forgeheart nerfs make
+    // those Act-2 fights end sooner, so the completed-MOVES FLOOR dropped 79→74 (median/max 98/123
+    // unchanged — the shortest winning run is the one that traversed a nerfed biome). The Altar
+    // (spec §2c) can skip one encounter, so encMin stays 21 while the median run stays at 22.
+    expect(policy.encMinCompleted).toBe(21);
     expect(policy.encMedianCompleted).toBe(22);
     expect(policy.encMaxCompleted).toBe(22);
-    expect(policy.movesMinCompleted).toBe(130);
-    expect(policy.movesMedianCompleted).toBe(132);
-    expect(policy.movesMaxCompleted).toBe(134);
+    expect(policy.movesMinCompleted).toBe(74);
+    expect(policy.movesMedianCompleted).toBe(98);
+    expect(policy.movesMaxCompleted).toBe(123);
   });
 
   it('posts the recorded aggregate totals (drift guards)', () => {
     const totalMoves = policyResults.reduce((a, r) => a + r.moves, 0);
     const totalRelics = policyResults.reduce((a, r) => a + r.relics, 0);
     const totalEncounters = policyResults.reduce((a, r) => a + r.encounters, 0);
-    // ALTAR RE-RECORD: total moves 1394 → 1401 (+7, the two winning runs' re-routed fights);
-    // relics (184) and encounters (262) are unchanged — the altar sits OFF the aggregate encounter
-    // count (a leave is not an encounter) and the bot never drafts differently on the losing runs.
-    expect(totalMoves).toBe(1401);
-    expect(totalRelics).toBe(184);
-    expect(totalEncounters).toBe(262);
+    // STAGE-6 RE-RECORD: more runs survive deeper (more encounters entered ⇒ 262→308, more relics
+    // drafted ⇒ 184→190) and total combat moves rose 1401→1510 as more runs reach Act 2.
+    // FAIRNESS-AMENDMENT RE-RECORD (2026-07-17): the eased ember/rotwood Act-2 fights shift the
+    // policy's HP-driven routing, so total combat moves dip 1510→1498 and encounters entered edge
+    // 308→309 (relics unchanged at 190; no win/loss outcome flipped on this 24-run batch).
+    expect(totalMoves).toBe(1498);
+    expect(totalRelics).toBe(190);
+    expect(totalEncounters).toBe(309);
   });
 
   it('posts the recorded death-by-cause breakdown (now includes Act-2 biome enemies)', () => {
+    // STAGE-6 RE-RECORD: with more runs reaching the bosses, the boss becomes the top killer.
     expect(policy.deathsByCause).toEqual([
-      { cause: 'fight:skeleton', count: 6 },
-      { cause: 'boss', count: 4 },
-      { cause: 'elite:skeleton', count: 4 },
-      { cause: 'elite:permafrost-warden', count: 2 },
-      { cause: 'fight:permafrost-warden', count: 2 },
-      { cause: 'elite:mirebark-hulk', count: 1 },
-      { cause: 'fight:furnace-wisp', count: 1 },
-      { cause: 'fight:mirebark-hulk', count: 1 },
-      { cause: 'fight:slime', count: 1 },
+      { cause: 'boss', count: 6 },
+      { cause: 'fight:skeleton', count: 5 },
+      { cause: 'fight:slime', count: 3 },
+      { cause: 'elite:skeleton', count: 2 },
+      { cause: 'elite:permafrost-warden', count: 1 },
     ]);
     // The cause counts sum to the defeats total (every defeat is attributed).
     const sum = policy.deathsByCause.reduce((a, b) => a + b.count, 0);

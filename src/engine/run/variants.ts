@@ -59,22 +59,29 @@ export interface RunVariant {
 export const MIN_VARIANT_MAX_HP = 20;
 
 /**
- * The six shipped variants. Numbers were CALIBRATED against the policy-bot sim (seed 42): a
- * modifier sweep measured the raw win-rate contribution of each lever in isolation —
- *   maxHP −6/−12/−18/−24/−30 ⇒ −4.5/−10.0/−16.5/−23.3/−30.8pp ·  emberfang +10.0pp ·
- *   rowan-chalice +18.5pp · bulwark-rune +25.5pp · cascade-sigil +16.3pp · gold+55 +3.5pp
- * — and each variant's maxHpDelta was solved so relicRaw + hpCurve(delta) ≈ 0, then verified
- * against the ±5pp purity band at ≥2000 runs (feature-meta-variants.md Verification Log).
+ * The six shipped variants. STAGE-6 RECALIBRATION (balance-tuning wave): after the win rate was
+ * retuned into the spec §9 band (vanilla ≈38.8%) and the policy bot was upgraded to affinity-aware
+ * combat, the Stage-4 maxHp offsets no longer held — the three large-pool-cost roles measured 13–16pp
+ * BELOW vanilla (a −maxHP hurts more, and the relics return less, over the long two-act run). Each
+ * role's maxHpDelta (its ONLY tuning knob — the relic identity is content-roles.md law) was re-solved
+ * to the ±5pp band at seed 42 (win-rate slope ≈1.7–1.9pp per maxHP point at this balance, solved from
+ * two measured points per role): Cartographer −6, Ember −12, Merchant −7 passed as-is (−1.3/−2.1/−2.7);
+ * Vitality −20→−14, Ironhide −24→−16, Glass Cannon −18→−11. Verified at 1000 games (Verification Log).
  * Order is the canonical unlock order — meta tranches unlock them in this sequence.
  */
 export const VARIANTS: readonly RunVariant[] = [
   {
     id: 'cartographer',
     name: 'Cartographer',
-    flavor: 'Travel light and know the road — less armor, a full map.',
-    // Map sight (human-only aid) paid for with max HP. The reveal is sim-inert, so the bot only
-    // ever sees the −maxHP; −4 measures ≈ −3pp, inside the band with margin.
-    modifiers: { revealMap: true, maxHpDelta: -4 },
+    flavor: 'Map-sight and a standing tithe — plan the whole route, arrive out-equipped.',
+    // STAGE-6 REWORK (content-roles.md). The old Cartographer was sim-INERT: `revealMap` has ZERO
+    // bot/sim effect (the policy already sees the map), so it played as vanilla −4 maxHP and "did
+    // nothing you do". The rework bolts a real ECONOMY engine onto the sight — `misers-knuckle`
+    // (+25% gold, onGoldEarned) turns route knowledge into compounding purchasing power over the
+    // long 2-act run (distinct from Merchant's Purse's one-time burst). Now the −maxHP is offset by
+    // a real relic contribution, so the role is band-tested like the others. Modifier-only (no
+    // engine extension). maxHpDelta calibrated to the ±5pp band at the final balance (Verif. Log).
+    modifiers: { revealMap: true, startRelicIds: ['misers-knuckle'], maxHpDelta: -6 },
   },
   {
     id: 'ember-start',
@@ -87,30 +94,35 @@ export const VARIANTS: readonly RunVariant[] = [
     id: 'merchants-purse',
     name: "Merchant's Purse",
     flavor: 'A loan up front — collected against your health.',
-    // gold+55 +3.5pp ↔ hpCurve(−5) ≈ −3.8pp.
-    modifiers: { goldDelta: 55, maxHpDelta: -5 },
+    // STAGE-6 (content-roles.md): the two-act run doubled in length, so the opening burst was
+    // bumped 55→70 to still buy a meaningful early relic in the longer run; maxHpDelta re-solved to
+    // the ±5pp band at the final balance (Verification Log). Kept distinct from reworked
+    // Cartographer: Purse = flat/immediate spike, Cartographer = percentage/sustained + sight.
+    modifiers: { goldDelta: 70, maxHpDelta: -7 },
   },
   {
     id: 'vitality-pact',
     name: 'Vitality Pact',
     flavor: 'Bleed to mend: your heals run deeper, your pool runs shallower.',
-    // rowan-chalice +18.5pp ↔ hpCurve(−20) ≈ −18.8pp.
-    modifiers: { startRelicIds: ['rowan-chalice'], maxHpDelta: -20 },
+    // STAGE-6 RECALIBRATION (2-point solve at 1000 games): the maxHP→win slope is ≈1.86pp/point at
+    // this balance. Points (−20 ⇒ −13.0pp) & (−9 ⇒ +7.4pp) ⇒ Δ=0 at −13; −14 centers the band (≈−1.9pp).
+    modifiers: { startRelicIds: ['rowan-chalice'], maxHpDelta: -14 },
   },
   {
     id: 'ironhide',
     name: 'Ironhide',
     flavor: 'Warded against every blow, but wearied by the weight.',
-    // bulwark-rune +25.5pp ↔ hpCurve(−24) = −23.3pp. −26 measured −3.4pp at 1000 runs (the
-    // relic×lowHP interaction runs ~3pp below additive), so −24 centers the band (≈ −1pp).
-    modifiers: { startRelicIds: ['bulwark-rune'], maxHpDelta: -24 },
+    // STAGE-6 RECALIBRATION (2-point solve at 1000 games): slope ≈1.9pp/point here. Points
+    // (−24 ⇒ −16.4pp) & (−10 ⇒ +10.2pp) ⇒ Δ=0 at −15.4; −16 centers the band (≈−1.2pp).
+    modifiers: { startRelicIds: ['bulwark-rune'], maxHpDelta: -16 },
   },
   {
     id: 'glass-cannon',
     name: 'Glass Cannon',
     flavor: 'All edge, no shield — cascades ruin, or you do.',
-    // cascade-sigil +16.3pp ↔ hpCurve(−18) = −16.5pp.
-    modifiers: { startRelicIds: ['cascade-sigil'], maxHpDelta: -18 },
+    // STAGE-6 RECALIBRATION (2-point solve at 1000 games): slope ≈1.72pp/point here. Points
+    // (−18 ⇒ −13.6pp) & (−7 ⇒ +5.3pp) ⇒ Δ=0 at −10.1; −11 centers the band (≈−1.6pp), thinnest kept pool.
+    modifiers: { startRelicIds: ['cascade-sigil'], maxHpDelta: -11 },
   },
 ];
 

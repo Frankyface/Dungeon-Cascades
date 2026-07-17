@@ -115,24 +115,27 @@ describe('startRun — applying a variant reshapes only the initial state', () =
 
   it("Merchant's Purse: banks starting gold and trims max HP", () => {
     const s = startRun(42, 'merchants-purse');
-    expect(s.gold).toBe(55);
-    expect(s.playerMaxHp).toBe(55); // 60 − 5
+    expect(s.gold).toBe(70); // STAGE-6 rework: burst 55→70
+    expect(s.playerMaxHp).toBe(53); // 60 − 7
     expect(s.relicIds).toEqual([]);
   });
 
-  it('Glass Cannon: a strong relic for a steep HP cost', () => {
+  it('Glass Cannon: a strong relic for an HP cost', () => {
     const s = startRun(42, 'glass-cannon');
     expect(s.relicIds).toEqual(['cascade-sigil']);
-    expect(s.playerMaxHp).toBe(42); // 60 − 18
-    expect(s.playerHp).toBe(42);
+    expect(s.playerMaxHp).toBe(49); // 60 − 11 (STAGE-6 recalibration: −18→−11 to hold the ±5pp band)
+    expect(s.playerHp).toBe(49);
   });
 
-  it('Cartographer: the revealMap flag is NOT stored on RunState (UI reads it from the variant)', () => {
+  it('Cartographer: grants the economy relic, trims max HP, and keeps revealMap OFF the RunState', () => {
     const s = startRun(42, 'cartographer');
     expect(s.variantId).toBe('cartographer');
+    // STAGE-6 rework: the map-sight now carries a real economy engine (misers-knuckle, +25% gold).
+    expect(s.relicIds).toEqual(['misers-knuckle']);
+    expect(s.playerMaxHp).toBe(54); // 60 − 6
+    // revealMap is a UI-only variant property — never stored on RunState (it has ZERO sim effect).
     expect('revealMap' in s).toBe(false);
     expect(getVariant('cartographer').modifiers.revealMap).toBe(true);
-    expect(s.playerMaxHp).toBe(56); // 60 − 4
   });
 
   it('throws on an unknown variant id', () => {

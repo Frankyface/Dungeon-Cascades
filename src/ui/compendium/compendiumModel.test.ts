@@ -3,11 +3,15 @@
  * engine registries and scaling formulas, so a balance change in `config.ts` / `runConfig.ts` /
  * `boss.ts` surfaces as a diff here (the whole point of a data-driven compendium).
  *
+ * RE-RECORDED for the STAGE-6 sim-wave locked constants (HP_DIFFICULTY_DAMPEN 0.2→0.12,
+ * ATTACK_DIFFICULTY_DAMPEN 0.15→0.10, ELITE_HP_MULT 1.3→1.15, ELITE_ATTACK_MULT 1.2→1.1,
+ * BOSS_HP_DAMPEN 0.3→0.22). These pins cover only the three BASE enemies + the Bone Colossus
+ * (Act-1 dungeon), none of which the 2026-07-17 biome-fairness amendment touches.
  * Elite sample floor = 6 ⇒ difficultyAt(6) = 1 + 0.15·6 = 1.9:
- *   hpMult(elite)  = (1 + (1.9−1)·0.2)·1.3 = 1.18·1.3 = 1.534
- *   atkMult(elite) = (1 + (1.9−1)·0.15)·1.2 = 1.135·1.2 = 1.362
- * Boss floor = 12 ⇒ difficultyAt(12) = 2.8 ⇒ maxHp = round(120·1.54) = 185;
- *   phase atkMult = 1 + (2.8−1)·0.15 = 1.27.
+ *   hpMult(elite)  = (1 + (1.9−1)·0.12)·1.15 = 1.108·1.15 = 1.2742
+ *   atkMult(elite) = (1 + (1.9−1)·0.10)·1.1  = 1.09·1.1  = 1.199
+ * Boss floor = 12 ⇒ difficultyAt(12) = 2.8 ⇒ maxHp = round(120·1.396) = 168;
+ *   phase atkMult = 1 + (2.8−1)·0.10 = 1.18.
  */
 import { RELIC_IDS, getRelic } from '../../engine/run';
 import { ENEMY_IDS, getEnemy } from '../../engine/combat';
@@ -99,19 +103,19 @@ describe('compendiumEnemy — elite-scaled example at the mid-run floor', () => 
     expect(compendiumEnemy('skeleton').elite.floor).toBe(6);
   });
 
-  it('scales the Skeleton to 184 HP and 11/charge/22 at floor 6', () => {
-    // hp = round(120·1.534) = 184; attacks round(8·1.362)=11, round(16·1.362)=22; charge stays 0.
+  it('scales the Skeleton to 153 HP and 10/charge/19 at floor 6', () => {
+    // hp = round(120·1.2742) = 153; attacks round(8·1.199)=10, round(16·1.199)=19; charge stays 0.
     const elite = compendiumEnemy('skeleton').elite;
-    expect(elite.hp).toBe(184);
-    expect(elite.scriptCycle).toBe('⚔ 11 → ⚡ charge → ⚔ 22 → repeat');
+    expect(elite.hp).toBe(153);
+    expect(elite.scriptCycle).toBe('⚔ 10 → ⚡ charge → ⚔ 19 → repeat');
   });
 
-  it('scales the Slime (123 HP) and Bat (138 HP, heal→11) at floor 6', () => {
-    expect(compendiumEnemy('slime').elite.hp).toBe(123); // round(80·1.534)
-    expect(compendiumEnemy('slime').elite.scriptCycle).toBe('⚔ 11 → repeat');
+  it('scales the Slime (102 HP) and Bat (115 HP, heal→10) at floor 6', () => {
+    expect(compendiumEnemy('slime').elite.hp).toBe(102); // round(80·1.2742)
+    expect(compendiumEnemy('slime').elite.scriptCycle).toBe('⚔ 10 → repeat'); // round(8·1.199)=10
     const bat = compendiumEnemy('bat').elite;
-    expect(bat.hp).toBe(138); // round(90·1.534)
-    expect(bat.scriptCycle).toBe('⚔ 8 → ✚ heal 11 → repeat'); // atk round(6·1.362)=8, heal round(8·1.362)=11
+    expect(bat.hp).toBe(115); // round(90·1.2742)
+    expect(bat.scriptCycle).toBe('⚔ 7 → ✚ heal 10 → repeat'); // atk round(6·1.199)=7, heal round(8·1.199)=10
   });
 });
 
@@ -136,32 +140,32 @@ describe('bossPhaseHpBands — derived from the engine thresholds', () => {
 describe('compendiumBoss — Bone Colossus, floor-scaled', () => {
   const boss = compendiumBoss();
 
-  it('is the Bone Colossus at floor 12, 185 HP scaled from 120 base', () => {
+  it('is the Bone Colossus at floor 12, 168 HP scaled from 120 base', () => {
     expect(boss.name).toBe('Bone Colossus');
     expect(boss.glyph).toBe(BOSS_GLYPH);
     expect(boss.floor).toBe(12);
     expect(boss.baseHp).toBe(120);
-    expect(boss.maxHp).toBe(185);
+    expect(boss.maxHp).toBe(168); // round(120·1.396), BOSS_HP_DAMPEN 0.3→0.22 re-record
   });
 
   it('has three phases with the scripted affinity shift and scaled scripts', () => {
     expect(boss.phases.map((p) => p.name)).toEqual(['Rising', 'Hardened', 'Enraged']);
 
-    // Phase 0 "Rising": weak R, HP band 185–123, scaled script (atk ×1.27).
-    expect(boss.phases[0].hpBand).toBe('185–123 HP');
+    // Phase 0 "Rising": weak R, HP band 168–111, scaled script (atk ×1.18).
+    expect(boss.phases[0].hpBand).toBe('168–111 HP');
     expect(boss.phases[0].affinity.weak.map((c) => c.label)).toEqual(['🔴×2']);
-    expect(boss.phases[0].scriptCycle).toBe('⚔ 13 → ⚡ charge → ⚔ 25 → repeat');
+    expect(boss.phases[0].scriptCycle).toBe('⚔ 12 → ⚡ charge → ⚔ 24 → repeat'); // round(10·1.18)=12, round(20·1.18)=24
 
-    // Phase 1 "Hardened": the shift — resists R, weak B; HP band 122–62.
-    expect(boss.phases[1].hpBand).toBe('122–62 HP');
+    // Phase 1 "Hardened": the shift — resists R, weak B; HP band 110–56.
+    expect(boss.phases[1].hpBand).toBe('110–56 HP');
     expect(boss.phases[1].affinity.weak.map((c) => c.label)).toEqual(['🔵×2']);
     expect(boss.phases[1].affinity.resist.map((c) => c.label)).toEqual(['🔴×½']);
-    expect(boss.phases[1].scriptCycle).toBe('⚔ 18 → ⚔ 18 → ⚡ charge → ⚔ 33 → repeat');
+    expect(boss.phases[1].scriptCycle).toBe('⚔ 17 → ⚔ 17 → ⚡ charge → ⚔ 31 → repeat'); // round(14·1.18)=17, round(26·1.18)=31
 
-    // Phase 2 "Enraged": weak Y; HP band 61–0.
-    expect(boss.phases[2].hpBand).toBe('61–0 HP');
+    // Phase 2 "Enraged": weak Y; HP band 55–0.
+    expect(boss.phases[2].hpBand).toBe('55–0 HP');
     expect(boss.phases[2].affinity.weak.map((c) => c.label)).toEqual(['🟡×2']);
-    expect(boss.phases[2].scriptCycle).toBe('⚔ 25 → ⚔ 30 → repeat');
+    expect(boss.phases[2].scriptCycle).toBe('⚔ 24 → ⚔ 28 → repeat'); // round(20·1.18)=24, round(24·1.18)=28
   });
 
   it('surfaces the telegraph fairness note', () => {

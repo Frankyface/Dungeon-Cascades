@@ -43,9 +43,18 @@ export const BOSS_RUSH_HEAL_FRACTION = 0.3;
 /** The tier the between-boss draft weights toward (a boss-grade reward). Sim-tunable. */
 export const BOSS_RUSH_DRAFT_TIER: RelicTier = 'epic';
 
+/**
+ * Pre-boss-1 LOADOUT CEREMONY (decisions.md 2026-07-17): epic-tier drafts the player takes from their
+ * unlocked pool BEFORE fighting boss 1. A bare-fisted floor-25 Bone Colossus is wrong for a human, not
+ * just a bot — the ceremony lets a Boss-Rush attempt open with a real build. Sim-tunable 1..3; the
+ * between-boss interstitial heal + draft is unchanged. Served through the ordinary `draft` phase.
+ */
+export const BOSS_RUSH_PREDRAFT_COUNT = 3;
+
 // Distinct seed tags so the encounter + draft streams never collide with a run's or each other's.
 const TAG_BOSSRUSH_ENCOUNTER = 811;
 const TAG_BOSSRUSH_DRAFT = 822;
+const TAG_BOSSRUSH_PREDRAFT = 833;
 
 /** What the player is doing in a Boss-Rush attempt. */
 export type BossRushPhase =
@@ -64,6 +73,12 @@ export interface BossRushState {
   readonly relicIds: readonly string[];
   /** The meta pool snapshot the between-boss drafts filter to (absent ⇒ base 12). */
   readonly unlockedRelicIds?: readonly string[];
+  /**
+   * Pre-boss-1 loadout-ceremony drafts still to take (served through the `draft` phase). Present and
+   * counting down from `BOSS_RUSH_PREDRAFT_COUNT` only during the ceremony; 0/absent everywhere after
+   * (so a legacy save with no ceremony is treated as "ceremony done" and behaves exactly as before).
+   */
+  readonly predraftsRemaining?: number;
   readonly phase: BossRushPhase;
   readonly status: 'active' | 'victory' | 'defeat';
 }
@@ -99,8 +114,32 @@ function enterBoss(state: BossRushState, options: BossRushOptions): BossRushStat
 }
 
 /**
+ * Open the next pre-boss-1 loadout-ceremony draft, or enter boss 0 once the ceremony is done. Each
+ * pre-draft draws epic-tier options from the unlocked pool (excluding already-picked relics) on its
+ * OWN seed stream. An empty pool (nothing epic left to offer) ends the ceremony early and enters boss
+ * 0 — never a wedge. Pure; never mutates input.
+ */
+function openPredraft(state: BossRushState, options: BossRushOptions): BossRushState {
+  const remaining = state.predraftsRemaining ?? 0;
+  if (remaining <= 0) return enterBoss({ ...state, predraftsRemaining: 0 }, options);
+  const predraftIndex = BOSS_RUSH_PREDRAFT_COUNT - remaining; // 0-based ceremony slot (distinct seed each)
+  const draftSeed = deriveSeed(deriveSeed(state.seed, TAG_BOSSRUSH_PREDRAFT), predraftIndex);
+  const { options: opts } = draftOptions(
+    state.relicIds,
+    createRng(draftSeed),
+    BOSS_RUSH_DRAFT_TIER,
+    state.unlockedRelicIds ?? UNLOCKED_BY_DEFAULT_IDS,
+  );
+  // Nothing left to offer ⇒ end the ceremony and go straight to boss 0 (no wedge, no empty draft).
+  if (opts.length === 0) return enterBoss({ ...state, predraftsRemaining: 0 }, options);
+  return { ...state, phase: { kind: 'draft', options: opts } };
+}
+
+/**
  * Begin a Boss-Rush attempt. Throws unless `meta.bossRushUnlocked` (spec §6 gate). Starts at full HP
- * with no relics against the first boss; the between-boss drafts filter to `meta.unlockedRelicIds`.
+ * with no relics, then opens the pre-boss-1 LOADOUT CEREMONY: `BOSS_RUSH_PREDRAFT_COUNT` epic-tier
+ * drafts from `meta.unlockedRelicIds` BEFORE boss 1 (so the attempt opens with a build). The between-
+ * boss drafts filter to the same pool.
  */
 export function startBossRush(seed: number, meta: MetaState, options: BossRushOptions = {}): BossRushState {
   if (!(meta.bossRushUnlocked ?? false)) {
@@ -113,11 +152,12 @@ export function startBossRush(seed: number, meta: MetaState, options: BossRushOp
     playerHp: RUN_PLAYER_MAX_HP,
     playerMaxHp: RUN_PLAYER_MAX_HP,
     relicIds: [],
+    predraftsRemaining: BOSS_RUSH_PREDRAFT_COUNT,
     ...(meta.unlockedRelicIds === undefined ? {} : { unlockedRelicIds: meta.unlockedRelicIds }),
-    phase: { kind: 'ended' }, // replaced by enterBoss
+    phase: { kind: 'ended' }, // replaced by openPredraft / enterBoss
     status: 'active',
   };
-  return enterBoss(base, options);
+  return openPredraft(base, options);
 }
 
 /** The result of a Boss-Rush combat turn: the new state plus the animatable resolution. */
@@ -195,8 +235,10 @@ export function playBossRushTurn(state: BossRushState, path: Path, options: Boss
 }
 
 /**
- * Resolve the between-boss draft: add `pickedId` (or `null` to skip), then advance to the NEXT boss's
- * combat. Requires an active attempt in the `draft` phase; `pickedId` must be one of the options.
+ * Resolve a `draft` phase: add `pickedId` (or `null` to skip). A PRE-boss-1 ceremony draft
+ * (`predraftsRemaining > 0`) consumes one pre-draft and opens the next (staying on boss 0's slot); a
+ * BETWEEN-boss draft advances to the NEXT boss's combat. Requires an active attempt in the `draft`
+ * phase; `pickedId` must be one of the options.
  */
 export function resolveBossRushDraft(state: BossRushState, pickedId: string | null, options: BossRushOptions = {}): BossRushState {
   if (state.status !== 'active') throw new Error(`resolveBossRushDraft: attempt is already ${state.status}`);
@@ -205,6 +247,12 @@ export function resolveBossRushDraft(state: BossRushState, pickedId: string | nu
     throw new Error(`resolveBossRushDraft: '${pickedId}' is not an offered option`);
   }
   const relicIds = pickedId === null ? state.relicIds : applyDraft(state.relicIds, pickedId);
+  const remaining = state.predraftsRemaining ?? 0;
+  if (remaining > 0) {
+    // Pre-boss-1 loadout ceremony: consume ONE pre-draft; stay on boss 0's slot (do NOT advance).
+    return openPredraft({ ...state, relicIds, predraftsRemaining: remaining - 1 }, options);
+  }
+  // Between-boss draft: add the relic and advance to the NEXT boss's combat (unchanged).
   return enterBoss({ ...state, relicIds, bossIndex: state.bossIndex + 1 }, options);
 }
 
