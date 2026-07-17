@@ -114,6 +114,13 @@ export interface RunState {
    * (`UNLOCKED_BY_DEFAULT_IDS`), so a snapshot-less `startRun(seed)` is byte-identical to before.
    */
   readonly unlockedRelicIds?: readonly string[];
+  /**
+   * DEV-RUN stamp (spec §8): `true` on a run staged from the dev screen (a seed/variant/biome/jump
+   * override). It is the belt-and-braces guard against dev progress leaking into the NORMAL profile:
+   * banking REFUSES to accrue a dev-stamped run onto the normal ledger regardless of the dev-mode
+   * toggle (see `bankRunRouted`). ABSENT on every ordinary run, so a normal `startRun` is byte-identical.
+   */
+  readonly isDevRun?: boolean;
 }
 
 /** Whether the run has finished (victory or defeat). Terminal states reject all actions. */

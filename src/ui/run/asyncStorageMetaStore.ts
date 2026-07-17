@@ -39,6 +39,23 @@ export class AsyncStorageMetaStore implements MetaStorePort {
     });
   }
 
+  /**
+   * Persist the profile and AWAIT the disk flush — the crash-safe variant used by the Altar sacrifice
+   * (spec §2c): the meta unlock (an un-re-derivable altar pick) must be durable BEFORE the run save
+   * clears the slot, so a crash between the two writes can never lose it. Ordinary callers keep the
+   * background-flush `save`. A flush failure is swallowed like `save` (best-effort; the mirror is
+   * already updated) rather than rejecting the caller's ordered write.
+   */
+  async saveAndFlush(state: MetaState): Promise<void> {
+    this.mirror = state;
+    this.hydrated = true;
+    try {
+      await AsyncStorage.setItem(this.key, JSON.stringify(state));
+    } catch (err) {
+      console.warn('[meta-store] saveAndFlush failed:', err);
+    }
+  }
+
   /** The current profile from the synchronous mirror (call `hydrate()` first on a cold start). */
   load(): MetaState | null {
     return this.mirror;

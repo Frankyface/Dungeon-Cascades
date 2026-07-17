@@ -41,6 +41,13 @@ export function DevScreen() {
   };
 
   const startDevRun = (): void => {
+    // Force dev mode ON before staging (spec §8): a dev run must run against the SEPARATE dev
+    // profile, so its banking never touches the normal ledger. (The run is also `isDevRun`-stamped
+    // in buildDevRun as a belt-and-braces guard should the toggle be flipped off mid-run.)
+    if (!isDevMode()) {
+      setDevMode(true);
+      rerender();
+    }
     const trimmed = seedText.trim();
     const parsed = Number(trimmed);
     const seed = trimmed === '' || Number.isNaN(parsed) ? makeRunSeed() : parsed >>> 0;

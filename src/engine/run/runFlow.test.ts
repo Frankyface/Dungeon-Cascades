@@ -6,6 +6,10 @@
  */
 import { startRun, enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, advanceAct, abandonRun } from './runFlow';
 import { buyFromShop, leaveShop, chooseEventOption, restAtNode, leaveRest } from './runNodes';
+import { VARIANTS, VARIANT_IDS, GOD_OF_WAR, getVariant, resolveVariantStart } from './variants';
+import { actStartGold, actStartPlayerHeal } from './relicHooks';
+import { RUN_PLAYER_MAX_HP } from './runConfig';
+import { STARTING_GOLD } from './economyConfig';
 import { greedyComboPath, trivialSwapPath } from './runPolicy';
 import { bossMaxHp } from './boss';
 import { getBossForBiome } from './biomeBosses';
@@ -58,6 +62,29 @@ describe('startRun', () => {
     expect(s.relicIds).toEqual([]);
     expect(s.phase.kind).toBe('awaiting_node');
     expect(s.status).toBe('active');
+  });
+
+  it('fires onActStart at Act-1 start yet stays byte-identical for vanilla + every shipped start', () => {
+    // FIX (relic audit): Act 1 IS an act start, so onActStart now fires in startRun too — but ONLY a
+    // relic OWNED at start (a variant grant) could move a number, and no shipped start relic touches
+    // the hook, so the baselines are unchanged. Prove that invariant first:
+    const shippedStartRelics = [...VARIANTS, GOD_OF_WAR].flatMap((v) => v.modifiers.startRelicIds ?? []);
+    for (const relicId of shippedStartRelics) {
+      expect(actStartGold([relicId])).toBe(0);
+      expect(actStartPlayerHeal([relicId])).toBe(0);
+    }
+    // Vanilla: no relics ⇒ folds are 0 ⇒ the vanilla start is unchanged.
+    const vanilla = startRun(42);
+    expect(vanilla.gold).toBe(STARTING_GOLD);
+    expect(vanilla.playerHp).toBe(vanilla.playerMaxHp);
+    // Each variant's start gold/HP equal the pure variant-resolved values (the fold added nothing).
+    for (const variantId of VARIANT_IDS) {
+      const resolved = resolveVariantStart(RUN_PLAYER_MAX_HP, STARTING_GOLD, [], getVariant(variantId).modifiers);
+      const run = startRun(7, variantId);
+      expect(run.gold).toBe(resolved.gold);
+      expect(run.playerHp).toBe(resolved.maxHp);
+      expect(run.playerMaxHp).toBe(resolved.maxHp);
+    }
   });
 });
 

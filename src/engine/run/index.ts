@@ -212,7 +212,7 @@ export { buyFromShop, leaveShop, chooseEventOption, restAtNode, leaveRest } from
 export type { ShopBuyResult } from './runNodes';
 
 // ── Stage 6 wave 2: the Altar node (odds table + seeded locked-pool pick, spec §2c) ──
-export { altarOdds, pickAltarUnlock, ALTAR_ODDS_SHALLOW, ALTAR_ODDS_DEEP } from './altar';
+export { altarOdds, effectiveAltarOdds, pickAltarUnlock, ALTAR_ODDS_SHALLOW, ALTAR_ODDS_DEEP } from './altar';
 export type { AltarOdds, AltarPick } from './altar';
 export { altarSeedFor, RUN_TAG_ALTAR } from './runSeeds';
 

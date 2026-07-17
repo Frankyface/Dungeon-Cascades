@@ -8,6 +8,7 @@ import {
   RELIC_IDS,
   UNLOCKED_BY_DEFAULT_IDS,
   altarOdds,
+  getRelic,
   startRun,
 } from '../../engine/run';
 import type { MetaState, RunState } from '../../engine/run';
@@ -42,5 +43,22 @@ describe('computeAltarView', () => {
     const view = computeAltarView(atAltar(5), maxed);
     expect(view.lockedCount).toBe(0);
     expect(view.nothingLeft).toBe(true);
+  });
+
+  it('shows EFFECTIVE odds — a rarity with no locked relics reads 0%, not the raw ramp (review M2)', () => {
+    const legendaryIds = RELIC_IDS.filter((id) => getRelic(id).tier === 'legendary');
+    // All legendaries (and the base) unlocked ⇒ the locked pool has zero legendaries left to draw.
+    const noLegendaries: MetaState = {
+      ...INITIAL_META_STATE,
+      unlockedRelicIds: [...UNLOCKED_BY_DEFAULT_IDS, ...legendaryIds],
+    };
+    // A deep (Act-2) altar where the RAW ramp would promise a legendary.
+    const deep = { ...startRun(5), act: 2, phase: { kind: 'altar', rngState: { seed: 1 } as never } } as RunState;
+    expect(altarOdds(2, 0).legendary).toBeGreaterThan(0); // raw ramp at this depth has legendary mass
+
+    const view = computeAltarView(deep, noLegendaries);
+    expect(view.odds.legendary).toBe(0); // effective — none left to unlock, so the pill reads 0%
+    expect(view.oddsPct.legendary).toBe('0%');
+    expect(view.odds.common + view.odds.epic + view.odds.legendary).toBeCloseTo(1, 10);
   });
 });

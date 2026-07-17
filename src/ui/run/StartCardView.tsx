@@ -30,15 +30,20 @@ const TONE_COLOR: Readonly<Record<ModifierTone, string>> = {
 
 export function StartCardView({ card, onPress }: StartCardViewProps) {
   const { locked, progress } = card;
+  const prestige = card.prestige === true;
   const fraction = progress === null ? 0 : Math.min(1, progress.required === 0 ? 1 : progress.current / progress.required);
 
   const body = (
-    <View style={[styles.card, locked && styles.lockedCard]}>
+    <View style={[styles.card, locked && styles.lockedCard, prestige && styles.prestigeCard]}>
       <View style={styles.headerRow}>
-        <Text style={[styles.name, locked && styles.lockedText]}>{card.name}</Text>
+        <Text style={[styles.name, locked && styles.lockedText, prestige && styles.prestigeName]}>{card.name}</Text>
         {locked ? (
           <View style={styles.lockBadge}>
             <Text style={styles.lockBadgeText}>🔒 Locked</Text>
+          </View>
+        ) : prestige ? (
+          <View style={styles.prestigeBadge}>
+            <Text style={styles.prestigeBadgeText}>★ Prestige</Text>
           </View>
         ) : card.isDefault ? (
           <View style={styles.defaultBadge}>
@@ -109,6 +114,27 @@ const styles = StyleSheet.create({
   lockedCard: {
     opacity: 0.6,
     borderColor: RUN_COLORS.lockedNode,
+  },
+  prestigeCard: {
+    borderColor: RUN_COLORS.gold,
+    borderWidth: 2,
+    backgroundColor: '#231d12',
+  },
+  prestigeName: {
+    color: RUN_COLORS.gold,
+  },
+  prestigeBadge: {
+    backgroundColor: RUN_COLORS.gold,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  prestigeBadgeText: {
+    color: '#231d12',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   headerRow: {
     flexDirection: 'row',

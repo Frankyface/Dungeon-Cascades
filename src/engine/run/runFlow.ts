@@ -104,8 +104,27 @@ export function startRun(seed: number, variantId?: string, unlockedRelicIds?: re
     // Snapshot the unlocked pool ONLY when supplied, so a snapshot-less start stays byte-identical.
     ...(unlockedRelicIds === undefined ? {} : { unlockedRelicIds }),
   };
-  if (variantId === undefined) return base;
-  return applyVariantStart(base, getVariant(variantId));
+  const started = variantId === undefined ? base : applyVariantStart(base, getVariant(variantId));
+  // Act 1 IS the start of an act, so the `onActStart` relic hooks fire here too — not only at the
+  // Act-1→Act-2 transition (`advanceAct`). This makes the three "each act" relics (content-relics.md:
+  // pathfinders-map / wayfarers-draught / second-dawn) spec-accurate. It only affects a run that
+  // OWNS such a relic at start — i.e. a variant-granted starting relic — so vanilla and every shipped
+  // variant (none grant an onActStart relic) stay byte-identical: the fold returns the same values and
+  // `applyActStart` returns the SAME object reference when nothing changed. The Act-1 heal caps against
+  // a full-HP start (a no-op), matching advanceAct's cap discipline.
+  return applyActStart(started);
+}
+
+/**
+ * Fire the `onActStart` relic hooks (bonus gold + a capped bonus heal) at an act's start. Pure. When
+ * no owned relic touches `onActStart` both folds are 0 and the SAME state object is returned, so a
+ * vanilla / relic-less start is byte-identical (no new fields, no numeric change).
+ */
+function applyActStart(state: RunState): RunState {
+  const gold = state.gold + actStartGold(state.relicIds);
+  const playerHp = Math.min(state.playerMaxHp, state.playerHp + actStartPlayerHeal(state.relicIds));
+  if (gold === state.gold && playerHp === state.playerHp) return state;
+  return { ...state, gold, playerHp };
 }
 
 /**

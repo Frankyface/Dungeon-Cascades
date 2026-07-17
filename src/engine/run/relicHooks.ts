@@ -114,19 +114,16 @@ export function applyCascadeWaveHooks(
   return Math.max(0, Math.round(total));
 }
 
-// STILL-DEFERRED (wave 1c note) — the two apply-site CLAMPS below live in the COMBAT engine, which
-// this wave's boundary keeps byte-identical (only additive run-layer threading is permitted), and
-// every relic they guard is LOCKED (never in the current sim/drafts), so there is zero balance
-// impact today. They land in the combat-relic-integration wave that wires the expansion relics into
-// live combat:
+// APPLY-SITE CLAMPS — now LIVE in the combat engine (decisions.md 2026-07-17 R3). Both were once
+// deferred to the combat-relic-integration wave; that wave landed, so the guards below are enforced:
 //   • tremor-stone "enemy HP floored at 1" (content-relics.md #20): the onCascadeWave enemyDamage is
-//     applied in combat (encounter.ts) combined with the move damage and floored at 0 — the passive
-//     cascade chip could theoretically take the kill. Flooring the CASCADE portion at 1 (so only the
-//     player's match damage can land the kill) needs restructuring combat's damage application.
+//     combined with the move damage in encounter.ts and the CASCADE portion floors the enemy at 1 —
+//     `enemyHpAfterMatch <= 0 ? 0 : Math.max(1, enemyHpAfterMatch - cascadeEnemyDamage)` — so only the
+//     player's own match damage can land the kill (the passive chip never does).
 //   • per-group ≥0 clamp (ironroot-aegis, counterweight-sigil, tidal-coffers, zenith-chalice): a
-//     negative additive/mul fold on a single damageGroup could push a group amount below 0; the
-//     aggregate move damage is already floored at 0 at the HP-apply site, so no enemy is ever HEALED,
-//     but a strict per-group ≥0 clamp is a combat-engine (effects.ts accumulator) change.
+//     negative additive/mul fold on a single damageGroup is clamped at 0 in effects.ts
+//     (`Math.max(0, modifiers.damageGroup(...))`), so a group can never HEAL the enemy or eat another
+//     group's damage in the sum.
 /** onCascadeWave — direct enemy HP loss summed over waves 2..N (rounded ≥0). */
 export function cascadeWaveEnemyDamage(
   waveCount: number,
@@ -160,6 +157,20 @@ function anyRelicHasHook(hook: HookName, relicIds: readonly string[], registry: 
 }
 
 /**
+ * Relic ids that grant ROT IMMUNITY — suppressing the Rotwood rot DoT tick in combat. This is a
+ * combat CHANNEL-SUPPRESSION capability, not a value-transform hook (there is no `onRotTick` hook to
+ * express it declaratively), so it is keyed by relic id here rather than by a hook. The Heartrot Seed
+ * legendary is the only holder today (content-relics.md #5: "immune to spore/rot damage"); a future
+ * rot-immunity relic joins this set. Kept as a set so `buildCombatModifiers` scans owned ids uniformly.
+ */
+const ROT_IMMUNITY_RELIC_IDS: ReadonlySet<string> = new Set<string>(['heartrot-seed']);
+
+/** Whether any owned relic grants rot immunity (the Heartrot Seed's rot-tick suppression). */
+function anyRelicGrantsRotImmunity(relicIds: readonly string[]): boolean {
+  return relicIds.some((id) => ROT_IMMUNITY_RELIC_IDS.has(id));
+}
+
+/**
  * Build the combat `CombatModifiers` seam from a player's owned relics. Each transform is
  * included ONLY if some owned relic touches its hook, so a player with no relevant relic
  * leaves the combat path byte-identical (an empty object ⇒ Stage-2 behavior). The Stage-6
@@ -175,6 +186,7 @@ export function buildCombatModifiers(
     healGroup?: CombatModifiers['healGroup'];
     incomingAttack?: CombatModifiers['incomingAttack'];
     cascadeWave?: CombatModifiers['cascadeWave'];
+    rotImmune?: CombatModifiers['rotImmune'];
   } = {};
 
   if (anyRelicHasHook('onDamageComputed', relicIds, registry)) {
@@ -197,6 +209,9 @@ export function buildCombatModifiers(
       playerHeal: cascadeWavePlayerHeal(waveCount, relicIds, registry),
     });
   }
+  // Heartrot Seed (content-relics.md #5): suppress the rot DoT tick in combat. Additive — a player
+  // without a rot-immunity relic leaves this undefined ⇒ rot ticks as normal ⇒ byte-identical.
+  if (anyRelicGrantsRotImmunity(relicIds)) mods.rotImmune = true;
 
   return mods;
 }

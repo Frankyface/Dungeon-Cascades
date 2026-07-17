@@ -274,6 +274,55 @@ describe('scalers — perRotStack THREADED into live combat (wave 1c)', () => {
   });
 });
 
+describe('Heartrot Seed — rot immunity + capped per-stack heal in live combat (HIGH relic audit)', () => {
+  // A Rotwood fight isolated to the rot channel: CHECKER + a swap that forms NO match (0 move damage,
+  // no refill draw), a charge telegraph (enemy deals 0), so the only HP movement is rot vs regen.
+  const CHECKER = boardFromRows(['RGR', 'GRG', 'RGR']);
+  const SWAP: Path = { start: { col: 0, row: 0 }, steps: ['right'] };
+  const rotState = (rotStacks: number, playerHp = 60): CombatState => ({
+    enemyId: 'slime',
+    board: CHECKER,
+    rngState: createRng(0),
+    playerHp,
+    playerMaxHp: 60,
+    enemyHp: 100,
+    enemyMaxHp: 100,
+    intentIndex: 0,
+    telegraph: { type: 'charge', value: 0 },
+    status: 'ongoing',
+    turn: 0,
+    rotStacks,
+  });
+
+  it('buildCombatModifiers sets rotImmune only when heartrot-seed is owned', () => {
+    expect(buildCombatModifiers(['heartrot-seed']).rotImmune).toBe(true);
+    expect(buildCombatModifiers(['sporecrown']).rotImmune).toBeUndefined();
+    expect(buildCombatModifiers([]).rotImmune).toBeUndefined();
+  });
+
+  it('takes 0 rot damage and heals 2 + min(6, N) each turn — the legendary no longer self-harms', () => {
+    // N = 3: regen 2 + 3 = 5, rot tick suppressed ⇒ net +5.
+    const three = playTurnWithRelics(rotState(3, 50), SWAP, ['heartrot-seed']);
+    expect(three.rotTick).toBe(0);
+    expect(three.playerHpAfter).toBe(55); // 50 + (2 + min(6,3)), no rot damage
+    expect(three.state.rotStacks).toBe(2); // stacks STILL decay (Sporecrown synergy preserved)
+
+    // N = 10: regen 2 + min(6,10) = 8. The OLD engine (rot always ticks) would net 8 − 10 = −2 here —
+    // a Rotwood legendary self-harming above 8 stacks. Immunity makes it a pure +8.
+    const ten = playTurnWithRelics(rotState(10, 40), SWAP, ['heartrot-seed']);
+    expect(ten.rotTick).toBe(0);
+    expect(ten.playerHpAfter).toBe(48); // 40 + 8
+    expect(ten.state.rotStacks).toBe(9);
+  });
+
+  it('WITHOUT heartrot the same rot ticks fully (a plain regen relic grants no immunity)', () => {
+    const ten = playTurnWithRelics(rotState(10, 40), SWAP, ['second-wind']);
+    expect(ten.rotTick).toBe(10);
+    expect(ten.playerHpAfter).toBe(31); // 40 + 1 regen − 10 rot
+    expect(ten.state.rotStacks).toBe(9);
+  });
+});
+
 describe('scalers — perRotStack (Rotwood)', () => {
   it('Sporecrown: +8% damage per rot stack, capped at 5 stacks', () => {
     expect(applyRelicHooks('onDamageComputed', 100, { rotStacks: 0 }, ['sporecrown'])).toBeCloseTo(100, 10);

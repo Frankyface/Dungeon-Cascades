@@ -49,4 +49,10 @@ describe('buildDevRun', () => {
     const run = buildDevRun({ seed: 1, unlockedRelicIds: pool });
     expect(run.unlockedRelicIds).toEqual(pool);
   });
+
+  it('stamps every dev run with isDevRun (Act-1 and jump-to-Act-2), so banking cannot leak it', () => {
+    expect(buildDevRun({ seed: 42 }).isDevRun).toBe(true);
+    expect(buildDevRun({ seed: 3, jumpToAct2: true }).isDevRun).toBe(true);
+    expect(buildDevRun({ seed: 7, variantId: 'glass-cannon' }).isDevRun).toBe(true);
+  });
 });

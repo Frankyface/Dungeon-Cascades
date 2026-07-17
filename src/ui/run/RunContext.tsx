@@ -15,7 +15,7 @@ import type { AltarSacrificeResult, BuyResult, RunState } from '../../engine/run
 import { applyRunAction, persistRun, safeApplyRunAction } from './runSession';
 import { routeForRunState } from './runRoute';
 import { runStore, takeStagedRun } from './runController';
-import { adoptMeta, bankContentUnlocksNow, metaState } from './metaController';
+import { adoptMetaFlush, bankContentUnlocksNow, metaState } from './metaController';
 
 /** The actions the run screens call. Combat turns go through `resolveEncounterTurn`. */
 export interface RunContextValue {
@@ -44,10 +44,11 @@ export interface RunContextValue {
   /**
    * Altar: SACRIFICE the run (spec §2c). Ends the run NOW for a permanent relic unlock, adopts the
    * new meta profile, and persists — but does NOT re-route, so the caller can play the reveal
-   * ceremony in place before routing to the outcome. Returns the sacrifice result (relic + events),
-   * or `null` if the run is not currently at an altar.
+   * ceremony in place before routing to the outcome. Resolves to the sacrifice result (relic + events),
+   * or `null` if the run is not currently at an altar. ASYNC because it AWAITS the meta-unlock flush
+   * to disk BEFORE clearing the run save (crash-safe ordering — the unlock can't be re-derived).
    */
-  sacrificeAtAltarNode(): AltarSacrificeResult | null;
+  sacrificeAtAltarNode(): Promise<AltarSacrificeResult | null>;
   /**
    * Act transition: advance into Act 2 (heal + Act-2 map), persist the content unlocks reaching the
    * biome earned, then route to the Act-2 map. Called by the transition screen's Continue.
@@ -141,13 +142,17 @@ export function RunProvider({ children }: { readonly children: ReactNode }) {
       },
       leaveRestNode: () => dispatch({ type: 'restLeave' }),
       leaveAltarNode: () => dispatch({ type: 'altarLeave' }),
-      sacrificeAtAltarNode: () => {
+      sacrificeAtAltarNode: async () => {
         const cur = stateRef.current;
         if (cur === null || cur.phase.kind !== 'altar') return null;
         // The engine computes the sacrifice: terminal `sacrificed` run + the new meta + unlock events.
         const result = sacrificeAtAltar(cur, metaState());
-        adoptMeta(result.meta); // persist the permanent relic unlock (survives the run's death)
-        commit(result.state); // terminal run → the save is cleared; NO re-route (stay for the reveal)
+        // ORDERED, crash-safe persistence (spec §2c): the permanent relic unlock is flushed to disk
+        // FIRST (awaited) — it can't be re-derived if lost — and only THEN is the terminal run saved
+        // (which clears the slot). A crash between the two writes preserves the unlock rather than
+        // losing it (or double-sacrificing). NO re-route: stay here for the reveal ceremony.
+        await adoptMetaFlush(result.meta);
+        commit(result.state);
         return result;
       },
       advanceToAct2: () => {

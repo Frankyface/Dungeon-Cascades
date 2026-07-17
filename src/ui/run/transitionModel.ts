@@ -10,7 +10,7 @@
  *
  * No React imports; deterministic; fully Jest-testable.
  */
-import { ACT_TRANSITION_HEAL_FRACTION, deriveUnlocks, getBiome } from '../../engine/run';
+import { ACT_TRANSITION_HEAL_FRACTION, actStartPlayerHeal, deriveUnlocks, getBiome } from '../../engine/run';
 import type { MetaState, RunState, UnlockEvent } from '../../engine/run';
 import type { BiomeId } from '../../engine/combat';
 import { biomeTheme, type BiomeTheme } from './biomeTheme';
@@ -26,9 +26,13 @@ export interface ActTransitionView {
   readonly toBiomeTheme: string;
   /** The Act-2 biome's UI tint set (the reveal tints by this). */
   readonly theme: BiomeTheme;
-  /** HP restored by the transition heal (rounded, capped at max). */
+  /**
+   * TOTAL HP the transition restores: the base transition heal PLUS any `onActStart` relic bonus heal
+   * `advanceAct` actually applies (content-relics.md: second-dawn / wayfarers-draught). Shown as the
+   * heal number so the displayed heal equals what the engine grants.
+   */
   readonly healAmount: number;
-  /** HP after the transition heal (capped at max). */
+  /** HP after the full transition heal (base + onActStart bonus, capped at max). */
   readonly healedHp: number;
   readonly maxHp: number;
   /** The full preview of unlock events reaching Act 2 earns (empty on a re-visited biome). */
@@ -44,7 +48,11 @@ export interface ActTransitionView {
 /** Build the act-transition view from a run in the `act_transition` phase and the live meta profile. */
 export function computeActTransition(state: RunState, meta: MetaState): ActTransitionView {
   const maxHp = state.playerMaxHp;
-  const healAmount = Math.round(maxHp * ACT_TRANSITION_HEAL_FRACTION);
+  // The base transition heal PLUS the onActStart relic bonus heal `advanceAct` layers on top, so the
+  // shown total matches the HP the engine actually restores (FIX: was base-only, under-reporting a
+  // player who owns an onActStart heal relic). Both cap at max HP, so summing before the cap is exact.
+  const transitionHeal = Math.round(maxHp * ACT_TRANSITION_HEAL_FRACTION);
+  const healAmount = transitionHeal + actStartPlayerHeal(state.relicIds);
   const healedHp = Math.min(maxHp, state.playerHp + healAmount);
 
   // Preview the unlocks reaching Act 2 will earn (deriveUnlocks reports the biome only at act === 2).

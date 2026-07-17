@@ -38,10 +38,11 @@ import { MoveTimerBar } from '../board/MoveTimerBar';
 import { useWaveAnimator } from '../board/useWaveAnimator';
 import { combatReducer, initCombatState } from './combatReducer';
 import { COMBAT_COLORS } from './combatColors';
-import { IMPACT_BEAT_MS, ENEMY_BEAT_MS } from './combatConstants';
-import { enemyName, formatEnemyAction, formatMoveFeedback } from './combatFormat';
-import { enemyActSnapshot, playerMoveSnapshot, type HpSnapshot } from './turnAnimation';
+import { IMPACT_BEAT_MS, ENEMY_BEAT_MS, ROT_BEAT_MS } from './combatConstants';
+import { buildImpactFeedback, enemyName, formatEnemyAction, rotSeepText } from './combatFormat';
+import { enemyActSnapshot, playerMoveSnapshot, rotTickSnapshot, type HpSnapshot } from './turnAnimation';
 import { EnemyPanel } from './EnemyPanel';
+import { CombatStatusChips } from './CombatStatusChips';
 import { PlayerPanel } from './PlayerPanel';
 import { TurnFeedback, type FeedbackContent } from './TurnFeedback';
 import { CombatOverlay } from './CombatOverlay';
@@ -59,22 +60,6 @@ function delay(ms: number): Promise<void> {
 /** A fresh UI-side seed for each encounter / retry (entropy for the pure engine). */
 function makeSeed(): number {
   return Math.floor(Math.random() * 0x7fffffff) >>> 0;
-}
-
-/** Player-move beat text: damage/heal totals + a weakness callout when hit. */
-function impactFeedback(resolution: TurnResolution): FeedbackContent {
-  const fb = formatMoveFeedback(resolution);
-  const accent = fb.weaknessHit ? fb.weaknessCallout : undefined;
-  if (fb.didDamage && fb.didHeal) {
-    return { main: `−${fb.damage} dmg · +${fb.heal} HP`, accent, tone: 'damage' };
-  }
-  if (fb.didDamage) {
-    return { main: `−${fb.damage} damage`, accent, tone: 'damage' };
-  }
-  if (fb.didHeal) {
-    return { main: `+${fb.heal} HP healed`, tone: 'heal' };
-  }
-  return { main: 'No match — no damage', tone: 'neutral' };
 }
 
 interface CombatScreenProps {
@@ -259,12 +244,23 @@ export function CombatScreen({
     await playWaves(postSwap, resolution.move);
     if (!mountedRef.current) return;
 
-    // 2. Settled board on screen; play the PLAYER-MOVE beat (enemy takes damage,
-    //    player heals) with the damage/heal + weakness callout.
+    // 2. Settled board on screen; the enemy-action beats begin.
     dispatch({ type: 'boardResolved', resolution });
     reset();
+
+    // 2a. ROT beat (Rotwood): the turn-start DoT ticks the player down on its own line, BEFORE the
+    //     move's heal/damage lands — so the rot channel is never invisible. Skipped when rot is 0.
+    if (resolution.rotTick > 0) {
+      setActingHp(rotTickSnapshot(resolution));
+      setFeedback({ main: rotSeepText(resolution.rotTick), tone: 'enemy' });
+      await delay(ROT_BEAT_MS);
+      if (!mountedRef.current) return;
+    }
+
+    // 2b. PLAYER-MOVE beat: enemy takes the EFFECTIVE (post shield/armor) damage, player gains the
+    //     EFFECTIVE (post curse) heal, with mitigation + weakness callouts.
     setActingHp(playerMoveSnapshot(resolution));
-    setFeedback(impactFeedback(resolution));
+    setFeedback(buildImpactFeedback(resolution));
     await delay(IMPACT_BEAT_MS);
     if (!mountedRef.current) return;
 
@@ -386,6 +382,8 @@ export function CombatScreen({
           glyphOverride={enemyGlyphOverride}
           affinityOverride={enemyAffinityOverride ?? state.combat.enemy?.affinity}
         />
+
+        <CombatStatusChips combat={state.combat} width={layout.width} />
 
         <TurnFeedback content={shownFeedback} />
 

@@ -5,6 +5,9 @@
  * long the screen lingers on each readable moment, tunable on-device by Cam.
  */
 
+/** How long the turn-start "Rot seeps −N" beat holds (only shown when the player carries rot). */
+export const ROT_BEAT_MS = 500;
+
 /** How long the "player move landed" beat holds (damage/heal callout visible). */
 export const IMPACT_BEAT_MS = 650;
 

@@ -49,10 +49,16 @@ export interface DevRunOptions {
  */
 export function buildDevRun(options: DevRunOptions): RunState {
   const seed = options.act2BiomeId !== undefined ? findSeedForAct2Biome(options.act2BiomeId, options.seed) : options.seed;
-  const run = startRun(seed, options.variantId, options.unlockedRelicIds);
-  if (options.jumpToAct2 !== true) return run;
-  // Synthesize the act-transition phase and run the real engine transition (heal + Act-2 map).
-  return advanceAct({ ...run, phase: { kind: 'act_transition' } });
+  const base = startRun(seed, options.variantId, options.unlockedRelicIds);
+  const run =
+    options.jumpToAct2 !== true
+      ? base
+      : // Synthesize the act-transition phase and run the real engine transition (heal + Act-2 map).
+        advanceAct({ ...base, phase: { kind: 'act_transition' } });
+  // Stamp the run as a dev run (spec §8): banking will refuse to accrue it onto the normal profile,
+  // even if dev mode was toggled off after staging — so a jump-to-Act-2 dev run can never unlock
+  // unearned biome/boss/relic content in the real ledger.
+  return { ...run, isDevRun: true };
 }
 
 /** The Act-2 biome ids a dev override may choose from (the four Act-2 biomes). */

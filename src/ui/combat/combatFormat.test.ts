@@ -2,6 +2,8 @@ import { getEnemy } from '../../engine/combat';
 import type { EnemyAction, GroupEffect, TurnResolution } from '../../engine/combat';
 import {
   buildAffinityChips,
+  buildImpactFeedback,
+  buildStatusChips,
   enemyName,
   formatEnemyAction,
   formatHp,
@@ -10,6 +12,7 @@ import {
   formatMultiplier,
   hpFraction,
   parseEnemyId,
+  rotSeepText,
 } from './combatFormat';
 
 describe('enemyName', () => {
@@ -98,11 +101,22 @@ describe('formatEnemyAction', () => {
   });
 });
 
-/** Minimal TurnResolution stub carrying only the fields the formatters read. */
+/**
+ * Minimal TurnResolution stub carrying only the fields the formatters read. `effectiveDamage` /
+ * `effectiveHeal` default to the raw `damage` / `heal` and the mitigation fields to 0 — override
+ * them for the biome-channel cases.
+ */
 function resolutionWith(
   fields: Partial<TurnResolution> & { groups: readonly GroupEffect[]; damage: number; heal: number },
 ): TurnResolution {
-  return fields as TurnResolution;
+  return {
+    effectiveDamage: fields.damage,
+    effectiveHeal: fields.heal,
+    shieldAbsorbed: 0,
+    armorAbsorbed: 0,
+    rotTick: 0,
+    ...fields,
+  } as TurnResolution;
 }
 
 function damageGroup(color: GroupEffect['color'], affinity: number): GroupEffect {
@@ -139,6 +153,84 @@ describe('formatMoveFeedback', () => {
       resolutionWith({ groups: [damageGroup('B', 2), damageGroup('B', 2)], damage: 50, heal: 0 }),
     );
     expect(fb.weaknessColors).toEqual(['B']);
+  });
+
+  it('reports EFFECTIVE damage/heal + mitigation (shield absorb + curse halving)', () => {
+    const fb = formatMoveFeedback(
+      resolutionWith({ groups: [], damage: 20, heal: 10, effectiveDamage: 6, effectiveHeal: 5, shieldAbsorbed: 14 }),
+    );
+    expect(fb.damage).toBe(6); // what actually reached HP, not the raw 20
+    expect(fb.heal).toBe(5); // curse-halved
+    expect(fb.shieldAbsorbed).toBe(14);
+    expect(fb.curseHalved).toBe(true);
+  });
+});
+
+describe('buildImpactFeedback', () => {
+  it('calls out shield absorption on the damage line', () => {
+    const fb = buildImpactFeedback(
+      resolutionWith({ groups: [], damage: 20, heal: 0, effectiveDamage: 6, shieldAbsorbed: 14 }),
+    );
+    expect(fb.main).toBe('−6 damage (14 absorbed by shield)');
+    expect(fb.tone).toBe('damage');
+  });
+
+  it('calls out the curse on the heal line', () => {
+    const fb = buildImpactFeedback(
+      resolutionWith({ groups: [], damage: 0, heal: 10, effectiveHeal: 5 }),
+    );
+    expect(fb.main).toBe('+5 HP healed (halved by curse)');
+    expect(fb.tone).toBe('heal');
+  });
+
+  it('surfaces a fully-absorbed hit instead of "no match"', () => {
+    const fb = buildImpactFeedback(
+      resolutionWith({ groups: [], damage: 6, heal: 0, effectiveDamage: 0, shieldAbsorbed: 6 }),
+    );
+    expect(fb.main).toBe('0 through (6 absorbed by shield)');
+    expect(fb.tone).toBe('neutral');
+  });
+
+  it('keeps the weakness accent while showing effective numbers', () => {
+    const fb = buildImpactFeedback(
+      resolutionWith({ groups: [damageGroup('B', 2)], damage: 20, heal: 0, effectiveDamage: 20 }),
+    );
+    expect(fb.main).toBe('−20 damage');
+    expect(fb.accent).toBe('🔵 Weakness!');
+  });
+
+  it('falls back to a plain no-match line when nothing landed and nothing was absorbed', () => {
+    const fb = buildImpactFeedback(resolutionWith({ groups: [], damage: 0, heal: 0 }));
+    expect(fb.main).toBe('No match — no damage');
+    expect(fb.tone).toBe('neutral');
+  });
+});
+
+describe('buildStatusChips', () => {
+  it('is empty for a default-biome fight (no channels)', () => {
+    expect(buildStatusChips({})).toEqual([]);
+  });
+
+  it('renders one chip per active channel with its value', () => {
+    const chips = buildStatusChips({ enemyShield: 12, enemyArmor: 4, rotStacks: 3, curseTurns: 2 });
+    expect(chips.map((c) => [c.key, c.label])).toEqual([
+      ['shield', '12'],
+      ['armor', '4'],
+      ['rot', '3'],
+      ['curse', '2 turns'],
+    ]);
+  });
+
+  it('singularizes a 1-turn curse and drops zero/absent channels', () => {
+    const chips = buildStatusChips({ enemyShield: 0, curseTurns: 1 });
+    expect(chips.map((c) => c.key)).toEqual(['curse']);
+    expect(chips[0].label).toBe('1 turn');
+  });
+});
+
+describe('rotSeepText', () => {
+  it('renders the rot DoT line', () => {
+    expect(rotSeepText(3)).toBe('Rot seeps −3');
   });
 });
 

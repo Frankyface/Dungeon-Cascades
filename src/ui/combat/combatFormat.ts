@@ -12,6 +12,7 @@
 import { AFFINITY_NORMAL, ENEMY_IDS } from '../../engine/combat';
 import type {
   AffinityTable,
+  CombatState,
   EnemyAction,
   EnemyId,
   GroupEffect,
@@ -237,12 +238,20 @@ function weaknessColors(groups: readonly GroupEffect[]): TileColor[] {
   return colors;
 }
 
-/** The player-move feedback: damage/heal totals plus a weakness callout when hit. */
+/** The player-move feedback: EFFECTIVE (applied) totals plus mitigation + a weakness callout. */
 export interface MoveFeedback {
+  /** Damage that actually reached enemy HP (post armor + shield); `resolution.effectiveDamage`. */
   readonly damage: number;
+  /** Heal actually applied (post curse); `resolution.effectiveHeal`. */
   readonly heal: number;
   readonly didDamage: boolean;
   readonly didHeal: boolean;
+  /** HP the Glacial shield absorbed from this move (0 when no shield). */
+  readonly shieldAbsorbed: number;
+  /** HP the Emberworks armor softened from this move (0 when no armor). */
+  readonly armorAbsorbed: number;
+  /** True when a Sunken-Catacombs curse halved the heal (effectiveHeal < raw heal). */
+  readonly curseHalved: boolean;
   /** True when at least one damage group hit an enemy weakness (2× etc.). */
   readonly weaknessHit: boolean;
   /** The distinct weakness colors hit, for the callout ("🔵 Weakness ×2!"). */
@@ -252,8 +261,10 @@ export interface MoveFeedback {
 }
 
 /**
- * Summarize a resolved turn's player-move effects for the on-screen feedback.
- * Reads only the engine's own `TurnResolution` breakdown — no recomputation.
+ * Summarize a resolved turn's player-move effects for the on-screen feedback, using the EFFECTIVE
+ * (applied) numbers so the shown damage/heal always equal what actually hit HP (review H1 — the
+ * telegraph "what you see is what fires" contract, extended to the biome mitigation channels). Reads
+ * only the engine's own `TurnResolution` — no combat recomputation.
  */
 export function formatMoveFeedback(resolution: TurnResolution): MoveFeedback {
   const colors = weaknessColors(resolution.groups);
@@ -262,15 +273,106 @@ export function formatMoveFeedback(resolution: TurnResolution): MoveFeedback {
     ? `${colors.map((c) => COLOR_GLYPH[c]).join('')} Weakness!`
     : '';
   return {
-    damage: resolution.damage,
-    heal: resolution.heal,
-    didDamage: resolution.damage > 0,
-    didHeal: resolution.heal > 0,
+    damage: resolution.effectiveDamage,
+    heal: resolution.effectiveHeal,
+    didDamage: resolution.effectiveDamage > 0,
+    didHeal: resolution.effectiveHeal > 0,
+    shieldAbsorbed: resolution.shieldAbsorbed,
+    armorAbsorbed: resolution.armorAbsorbed,
+    curseHalved: resolution.effectiveHeal < resolution.heal,
     weaknessHit,
     weaknessColors: colors,
     weaknessCallout: callout,
   };
 }
+
+/** The tone of the impact-beat feedback line — a subset of the panel's FeedbackTone. */
+export type ImpactTone = 'damage' | 'heal' | 'neutral';
+
+/** The player-move ("impact") feedback line: the main string, an optional weakness accent, and a tone. */
+export interface ImpactFeedback {
+  readonly main: string;
+  readonly accent?: string;
+  readonly tone: ImpactTone;
+}
+
+/** A concise callout of how much a move was blunted by the enemy's shield / armor. */
+function mitigationNote(shieldAbsorbed: number, armorAbsorbed: number): string {
+  if (shieldAbsorbed > 0 && armorAbsorbed > 0) return ` (${shieldAbsorbed + armorAbsorbed} absorbed)`;
+  if (shieldAbsorbed > 0) return ` (${shieldAbsorbed} absorbed by shield)`;
+  if (armorAbsorbed > 0) return ` (${armorAbsorbed} softened by armor)`;
+  return '';
+}
+
+/**
+ * Build the player-move impact feedback line from a resolution, using the EFFECTIVE numbers and
+ * calling out mitigation (shield/armor absorb, curse halving). A fully-absorbed hit reports the
+ * absorb instead of "no match", so the shield/armor is never invisible. Pure + Jest-testable — the
+ * combat screen just renders the returned strings.
+ */
+export function buildImpactFeedback(resolution: TurnResolution): ImpactFeedback {
+  const fb = formatMoveFeedback(resolution);
+  const accent = fb.weaknessHit ? fb.weaknessCallout : undefined;
+  const mitig = mitigationNote(fb.shieldAbsorbed, fb.armorAbsorbed);
+  const curseNote = fb.curseHalved ? ' (halved by curse)' : '';
+
+  if (fb.didDamage && fb.didHeal) {
+    return { main: `−${fb.damage} dmg${mitig} · +${fb.heal} HP${curseNote}`, accent, tone: 'damage' };
+  }
+  if (fb.didDamage) {
+    return { main: `−${fb.damage} damage${mitig}`, accent, tone: 'damage' };
+  }
+  if (fb.didHeal) {
+    return { main: `+${fb.heal} HP healed${curseNote}`, tone: 'heal' };
+  }
+  // No HP reached the enemy: distinguish "fully absorbed by a channel" from "no match at all".
+  if (fb.shieldAbsorbed > 0 || fb.armorAbsorbed > 0) {
+    return { main: `0 through${mitig}`, accent, tone: 'neutral' };
+  }
+  return { main: 'No match — no damage', tone: 'neutral' };
+}
+
+/** The rot turn-start DoT feedback line, e.g. `Rot seeps −3`. */
+export function rotSeepText(rotTick: number): string {
+  return `Rot seeps −${rotTick}`;
+}
+
+/** One active biome-channel status chip (rendered as a compact row on the combat screen). */
+export interface StatusChip {
+  readonly key: 'shield' | 'armor' | 'rot' | 'curse';
+  readonly glyph: string;
+  /** e.g. `12`, `3`, `2 turns` — the value beside the glyph. */
+  readonly label: string;
+  readonly tint: string;
+}
+
+/**
+ * The active biome channels on a `CombatState`, as compact status chips (empty for a default-biome
+ * fight, which has no channels ⇒ no chip row rendered). Sourced straight from CombatState so the row
+ * always mirrors the live persistent state (enemy shield/armor, player rot/curse). Pure + testable.
+ */
+export function buildStatusChips(
+  combat: Pick<CombatState, 'enemyShield' | 'enemyArmor' | 'rotStacks' | 'curseTurns'>,
+): readonly StatusChip[] {
+  const chips: StatusChip[] = [];
+  const shield = combat.enemyShield ?? 0;
+  const armor = combat.enemyArmor ?? 0;
+  const rot = combat.rotStacks ?? 0;
+  const curse = combat.curseTurns ?? 0;
+  if (shield > 0) chips.push({ key: 'shield', glyph: '🛡', label: `${shield}`, tint: COMBAT_STATUS_TINT.shield });
+  if (armor > 0) chips.push({ key: 'armor', glyph: '⛨', label: `${armor}`, tint: COMBAT_STATUS_TINT.armor });
+  if (rot > 0) chips.push({ key: 'rot', glyph: '🍄', label: `${rot}`, tint: COMBAT_STATUS_TINT.rot });
+  if (curse > 0) chips.push({ key: 'curse', glyph: '🕯', label: `${curse} turn${curse === 1 ? '' : 's'}`, tint: COMBAT_STATUS_TINT.curse });
+  return chips;
+}
+
+/** Tint per status channel (imported hue values, so combatFormat stays React-free). */
+const COMBAT_STATUS_TINT: Readonly<Record<StatusChip['key'], string>> = {
+  shield: '#9ec2ff', // resist-blue: enemy frost shield
+  armor: '#ffd76b', // charge-amber: enemy one-shot plate
+  rot: '#ff9ea1', // damage-red: player rot DoT
+  curse: '#c9a8ff', // curse-violet: player heal debuff
+};
 
 /** Clamp an HP value to a 0..1 bar fraction; guards a non-positive max. */
 export function hpFraction(hp: number, maxHp: number): number {

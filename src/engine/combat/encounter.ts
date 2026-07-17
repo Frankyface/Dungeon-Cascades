@@ -198,8 +198,11 @@ export function playTurn(
 
   // 0. ROT tick (Rotwood): player-turn-start DoT on its OWN channel — NOT reduced by the
   // defensive relic seam (it is applied here, never through `incomingAttack`). Then decay 1.
-  // `rotTick` reports the rolled DoT (overkill retained, like `damage`).
-  const rotTick = rot0;
+  // `rotTick` reports the rolled DoT (overkill retained, like `damage`). The Heartrot Seed's
+  // `rotImmune` flag SUPPRESSES the tick to 0 (content-relics.md #5) while the stacks still
+  // accumulate/decay below — preserving the Sporecrown per-rot-stack damage synergy.
+  const rotImmune = modifiers?.rotImmune === true;
+  const rotTick = rotImmune ? 0 : rot0;
   const playerHpAfterRot = Math.max(0, state.playerHp - rotTick);
   const rotAfterTick = Math.max(0, rot0 - 1);
 
@@ -227,6 +230,7 @@ export function playTurn(
   // dampener) then Glacial shield (persistent absorb); the remainder carries through to HP.
   // Cascade-wave enemy damage is DIRECT, affinity-ignoring HP loss dealt alongside the move.
   const afterArmor = Math.max(0, effects.damage - armor0);
+  const armorAbsorbed = effects.damage - afterArmor; // = min(armor0, effects.damage), reported for the UI
   const armorAfter = 0; // one-shot: cleared by the strike it dampened
   const shieldAbsorbed = Math.min(shield0, afterArmor);
   const shieldAfterMove = shield0 - shieldAbsorbed;
@@ -260,6 +264,10 @@ export function playTurn(
       cascadeMultiplier: effects.cascadeMultiplier,
       damage: effects.damage,
       heal: effects.heal,
+      effectiveDamage: dmgToEnemy,
+      effectiveHeal,
+      shieldAbsorbed,
+      armorAbsorbed,
       enemyAction: null,
       rotTick,
       playerHpBefore: state.playerHp,
@@ -323,6 +331,10 @@ export function playTurn(
     cascadeMultiplier: effects.cascadeMultiplier,
     damage: effects.damage,
     heal: effects.heal,
+    effectiveDamage: dmgToEnemy,
+    effectiveHeal,
+    shieldAbsorbed,
+    armorAbsorbed,
     enemyAction,
     rotTick,
     playerHpBefore: state.playerHp,

@@ -100,3 +100,48 @@ export function pickAltarUnlock(
   const relicId = pool[idx];
   return { relicId, rarity: getRelic(relicId, registry).tier, rngState: state };
 }
+
+/**
+ * The TRUE (post-degradation) rarity distribution a sacrifice will actually unlock at (act, floor),
+ * given the locked pool implied by `unlockedRelicIds`. The raw `altarOdds` ramp is the roll table, but
+ * `pickAltarUnlock` GRACEFULLY DEGRADES: a rolled rarity whose locked pool is empty falls back to a
+ * uniform draw over the WHOLE locked pool. So a rarity with zero locked relics can never be unlocked,
+ * and its raw probability mass is redistributed over the rarities that DO have locked relics, in
+ * proportion to their share of the locked pool. This function computes that effective distribution so
+ * the UI shows the odds a player will actually experience — not the raw ramp (review M2 / manager
+ * ruling: "25% legendary" must not display when zero legendaries remain to unlock).
+ *
+ * Derivation: with raw odds `p_R` and locked counts `n_X` (total `N`), the effective chance of
+ * unlocking rarity X is `(n_X > 0 ? p_X : 0) + (Σ_{R: n_R = 0} p_R) · (n_X / N)`. Empty rarities get 0;
+ * the total always sums to 1 (or all-zero when nothing is left to unlock). Pure; never mutates input.
+ */
+export function effectiveAltarOdds(
+  unlockedRelicIds: readonly string[],
+  act: number,
+  floor: number,
+  registry: RelicRegistry = RELIC_REGISTRY,
+): AltarOdds {
+  const unlocked = new Set(unlockedRelicIds);
+  const lockedIds = (registry === RELIC_REGISTRY ? RELIC_IDS : Object.keys(registry)).filter(
+    (id) => !unlocked.has(id),
+  );
+  const total = lockedIds.length;
+  if (total === 0) return { common: 0, epic: 0, legendary: 0 }; // nothing left to unlock
+
+  const counts: Record<RelicTier, number> = { common: 0, epic: 0, legendary: 0 };
+  for (const id of lockedIds) counts[getRelic(id, registry).tier] += 1;
+
+  const raw = altarOdds(act, floor);
+  // The probability mass of every EMPTY rarity pool is redistributed over the locked composition.
+  const degraded =
+    (counts.common === 0 ? raw.common : 0) +
+    (counts.epic === 0 ? raw.epic : 0) +
+    (counts.legendary === 0 ? raw.legendary : 0);
+  const effective = (tier: RelicTier, p: number): number =>
+    counts[tier] > 0 ? p + degraded * (counts[tier] / total) : 0;
+  return {
+    common: effective('common', raw.common),
+    epic: effective('epic', raw.epic),
+    legendary: effective('legendary', raw.legendary),
+  };
+}

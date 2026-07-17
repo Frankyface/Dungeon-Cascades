@@ -132,3 +132,37 @@ export function bankRunOnce(ledger: BankLedger, state: RunState): BankOnceResult
     didBank: true,
   };
 }
+
+/** The result of a slot-routed bank: both ledgers (only the routed one changes) + the outcome. */
+export interface RoutedBankResult {
+  readonly normal: BankLedger;
+  readonly dev: BankLedger;
+  readonly outcome: BankOutcome;
+  readonly didBank: boolean;
+  /** Which slot received the bank — so the caller persists to the matching store. */
+  readonly bankedDev: boolean;
+}
+
+/**
+ * Route a terminal run's bank to the correct profile slot and bank it ONCE (spec §8 dev isolation).
+ * It goes to the DEV ledger when dev mode is active OR the run is `isDevRun`-stamped — BELT AND BRACES:
+ * a dev run must never accrue onto the normal profile even if dev mode was toggled off after the run
+ * started. Otherwise it banks onto the NORMAL ledger. Pure — returns both ledgers (only the routed one
+ * changes) plus the outcome and which slot banked; the singleton persists the matching store.
+ */
+export function bankRunRouted(
+  normal: BankLedger,
+  dev: BankLedger,
+  devActive: boolean,
+  state: RunState,
+): RoutedBankResult {
+  const useDev = devActive || state.isDevRun === true;
+  const res = bankRunOnce(useDev ? dev : normal, state);
+  return {
+    normal: useDev ? normal : res.ledger,
+    dev: useDev ? res.ledger : dev,
+    outcome: res.outcome,
+    didBank: res.didBank,
+    bankedDev: useDev,
+  };
+}

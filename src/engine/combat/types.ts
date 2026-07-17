@@ -224,10 +224,26 @@ export interface TurnResolution {
   /** Per-group damage/heal breakdown (flattened across all waves). */
   readonly groups: readonly GroupEffect[];
   readonly cascadeMultiplier: number;
-  /** Rounded total damage the move rolled (overkill retained; not floored). */
+  /** Rounded total damage the move rolled (overkill retained; not floored). RAW — pre-mitigation. */
   readonly damage: number;
-  /** Rounded total heal the move rolled (pre-cap; actual gain = HP delta). */
+  /** Rounded total heal the move rolled (pre-cap; actual gain = HP delta). RAW — pre-curse. */
   readonly heal: number;
+  /**
+   * The damage that actually reached enemy HP this move, AFTER Emberworks armor + the Glacial shield
+   * absorbed their share (`= damage − armorAbsorbed − shieldAbsorbed`; overkill retained). Equals
+   * `damage` in any fight with no armor/shield channel active, so the UI can always show "what landed".
+   * Stage-6 biome telegraph-parity (review H1): the shown numbers must equal the applied ones.
+   */
+  readonly effectiveDamage: number;
+  /**
+   * The heal actually applied this move, AFTER a Sunken-Catacombs curse halved it (`= round(heal/2)`
+   * while cursed, else `heal`). Equals `heal` in any fight with no active curse.
+   */
+  readonly effectiveHeal: number;
+  /** HP the Glacial shield absorbed from this move (0 when no shield was up). */
+  readonly shieldAbsorbed: number;
+  /** HP the Emberworks one-shot armor softened from this move (0 when no armor was up). */
+  readonly armorAbsorbed: number;
   /** What the enemy did this turn; `null` when the enemy died and never acted. */
   readonly enemyAction: EnemyAction | null;
   /**

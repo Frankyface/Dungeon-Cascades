@@ -17,15 +17,25 @@ export interface HpSnapshot {
 }
 
 /**
- * HP after the PLAYER's move resolves but BEFORE the enemy acts:
- * - enemy took `resolution.damage` (floored at 0),
- * - player gained `resolution.heal` (capped at max HP).
+ * HP the turn-start ROT DoT leaves the player at, before the move lands (Rotwood). The enemy is
+ * untouched (rot acts only on the player). 0-tick fights never show this beat.
+ */
+export function rotTickSnapshot(resolution: TurnResolution): HpSnapshot {
+  const player = Math.max(0, resolution.playerHpBefore - resolution.rotTick);
+  return { player, enemy: resolution.enemyHpBefore };
+}
+
+/**
+ * HP after the PLAYER's move resolves but BEFORE the enemy acts, using the EFFECTIVE (applied)
+ * numbers so a shielded/armored enemy and a cursed heal animate to the real HP (review H1):
+ * - enemy took `resolution.effectiveDamage` (post armor + shield, floored at 0),
+ * - player lost this turn's `rotTick`, then gained `resolution.effectiveHeal` (capped at max HP).
  * Derived from the engine's own totals; matches `encounter.playTurn`'s batch apply.
  */
 export function playerMoveSnapshot(resolution: TurnResolution): HpSnapshot {
-  const enemy = Math.max(0, resolution.enemyHpBefore - resolution.damage);
+  const enemy = Math.max(0, resolution.enemyHpBefore - resolution.effectiveDamage);
   const playerMax = resolution.state.playerMaxHp;
-  const player = Math.min(playerMax, resolution.playerHpBefore + resolution.heal);
+  const player = Math.min(playerMax, resolution.playerHpBefore - resolution.rotTick + resolution.effectiveHeal);
   return { player, enemy };
 }
 

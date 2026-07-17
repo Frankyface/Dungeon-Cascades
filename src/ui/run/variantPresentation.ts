@@ -7,7 +7,7 @@
  * start, reusing `relicPresentation`'s effect text for granted relics — so a data-only variant tweak
  * shows correct copy for free. No React imports; deterministic; never mutates. See relicPresentation.
  */
-import { UNLOCK_TRANCHES, VARIANTS, getRelic, selectableStarts } from '../../engine/run';
+import { GOD_OF_WAR, GOD_OF_WAR_ID, UNLOCK_TRANCHES, VARIANTS, getRelic, selectableStarts } from '../../engine/run';
 import type { MetaState, VariantModifiers } from '../../engine/run';
 import { describeRelic } from './relicPresentation';
 
@@ -50,6 +50,12 @@ export interface StartCard {
   readonly locked: boolean;
   /** Vanilla is the always-present default choice. */
   readonly isDefault: boolean;
+  /**
+   * The God of War PRESTIGE class (spec §3): a celebratory, distinct-styled card that appears ONLY
+   * once earned (Boss-Rush victory) — never shown-locked, since it is a secret until Boss Rush reveals
+   * it. Absent/false on vanilla and the six tranche variants.
+   */
+  readonly prestige?: boolean;
   /** Present only for a locked card. */
   readonly progress: UnlockProgress | null;
 }
@@ -115,6 +121,20 @@ function vanillaCard(): StartCard {
   };
 }
 
+/** The God of War prestige card (only built when earned) — startable, prestige-styled, no progress. */
+function godOfWarCard(): StartCard {
+  return {
+    variantId: GOD_OF_WAR_ID,
+    name: GOD_OF_WAR.name,
+    flavor: GOD_OF_WAR.flavor,
+    modifiers: describeVariantModifiers(GOD_OF_WAR.modifiers),
+    locked: false,
+    isDefault: false,
+    prestige: true,
+    progress: null,
+  };
+}
+
 /** The unlock progress for a locked variant (or `null` if it has no tranche — never for shipped ones). */
 function progressFor(variantId: string, score: number): UnlockProgress | null {
   const required = REQUIRED_SCORE.get(variantId);
@@ -128,11 +148,13 @@ function progressFor(variantId: string, score: number): UnlockProgress | null {
 }
 
 /**
- * Every start-selection card for the current profile: vanilla first, then all variants in canonical
- * (unlock) order. A variant is selectable iff it is in `selectableStarts(meta)`; the rest are shown
- * LOCKED with their unlock progress. The set of non-locked ids therefore always equals
- * `selectableStarts(meta)` (vanilla + earned variants) — the engine stays the single source of truth
- * for what may be started.
+ * Every start-selection card for the current profile: vanilla first, then all six tranche variants in
+ * canonical (unlock) order, then — ONLY once earned — the God of War prestige card. A variant is
+ * selectable iff it is in `selectableStarts(meta)`; the rest are shown LOCKED with their unlock
+ * progress. God of War is NEVER shown-locked (it is a secret until Boss Rush reveals it), so it is
+ * appended purely on its earned flag. The set of non-locked ids therefore always equals
+ * `selectableStarts(meta)` (vanilla + earned variants + earned God of War) — the engine stays the
+ * single source of truth for what may be started.
  */
 export function startCards(meta: MetaState): readonly StartCard[] {
   const available = new Set<string | null>(selectableStarts(meta));
@@ -148,5 +170,7 @@ export function startCards(meta: MetaState): readonly StartCard[] {
       progress: locked ? progressFor(variant.id, meta.score) : null,
     };
   });
-  return [vanillaCard(), ...variantCards];
+  const cards: StartCard[] = [vanillaCard(), ...variantCards];
+  if (available.has(GOD_OF_WAR_ID)) cards.push(godOfWarCard());
+  return cards;
 }

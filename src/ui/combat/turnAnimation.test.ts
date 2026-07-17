@@ -1,9 +1,13 @@
 import { playTurn, startEncounter } from '../../engine/combat';
 import type { CombatState, EnemyId, TurnResolution } from '../../engine/combat';
 import type { Direction } from '../../engine/board';
-import { enemyActionMovesHp, enemyActSnapshot, playerMoveSnapshot } from './turnAnimation';
+import { enemyActionMovesHp, enemyActSnapshot, playerMoveSnapshot, rotTickSnapshot } from './turnAnimation';
 
-/** Build a TurnResolution stub with only the HP-relevant fields the helpers read. */
+/**
+ * Build a TurnResolution stub with only the HP-relevant fields the helpers read. `effectiveDamage`
+ * / `effectiveHeal` default to the raw `damage` / `heal` (a channel-less fight), and `rotTick`
+ * defaults to 0 — override them for the biome-channel cases.
+ */
 function resolution(fields: {
   enemyHpBefore: number;
   playerHpBefore: number;
@@ -13,12 +17,20 @@ function resolution(fields: {
   enemyHpAfter: number;
   playerMaxHp?: number;
   enemyAction?: TurnResolution['enemyAction'];
+  effectiveDamage?: number;
+  effectiveHeal?: number;
+  rotTick?: number;
 }): TurnResolution {
   return {
     enemyHpBefore: fields.enemyHpBefore,
     playerHpBefore: fields.playerHpBefore,
     damage: fields.damage,
     heal: fields.heal,
+    effectiveDamage: fields.effectiveDamage ?? fields.damage,
+    effectiveHeal: fields.effectiveHeal ?? fields.heal,
+    shieldAbsorbed: 0,
+    armorAbsorbed: 0,
+    rotTick: fields.rotTick ?? 0,
     playerHpAfter: fields.playerHpAfter,
     enemyHpAfter: fields.enemyHpAfter,
     enemyAction: fields.enemyAction ?? { type: 'attack', value: 6 },
@@ -47,6 +59,46 @@ describe('playerMoveSnapshot', () => {
       resolution({ enemyHpBefore: 30, playerHpBefore: 58, damage: 0, heal: 10, playerHpAfter: 60, enemyHpAfter: 30, playerMaxHp: 60 }),
     );
     expect(snap.player).toBe(60);
+  });
+
+  it('uses EFFECTIVE damage when a shield/armor absorbed part of the hit', () => {
+    // Raw 20 rolled, but only 6 reached HP (14 absorbed): the enemy bar drops by 6, not 20.
+    const snap = playerMoveSnapshot(
+      resolution({ enemyHpBefore: 30, playerHpBefore: 40, damage: 20, effectiveDamage: 6, heal: 0, playerHpAfter: 34, enemyHpAfter: 24 }),
+    );
+    expect(snap.enemy).toBe(24); // 30 − 6, not 30 − 20
+  });
+
+  it('uses EFFECTIVE heal when a curse halved the heal', () => {
+    // Raw 10 rolled, curse halves to 5: the player bar rises by 5.
+    const snap = playerMoveSnapshot(
+      resolution({ enemyHpBefore: 30, playerHpBefore: 40, damage: 0, heal: 10, effectiveHeal: 5, playerHpAfter: 45, enemyHpAfter: 30 }),
+    );
+    expect(snap.player).toBe(45); // 40 + 5, not 40 + 10
+  });
+
+  it('accounts for the turn-start rot tick before the move heal', () => {
+    // rot ticks 3 (40 → 37), then heal 5 (→ 42).
+    const snap = playerMoveSnapshot(
+      resolution({ enemyHpBefore: 30, playerHpBefore: 40, damage: 0, heal: 5, rotTick: 3, playerHpAfter: 42, enemyHpAfter: 30 }),
+    );
+    expect(snap.player).toBe(42); // 40 − 3 + 5
+  });
+});
+
+describe('rotTickSnapshot', () => {
+  it('drops the player by the rot tick and leaves the enemy untouched', () => {
+    const snap = rotTickSnapshot(
+      resolution({ enemyHpBefore: 30, playerHpBefore: 40, damage: 0, heal: 0, rotTick: 3, playerHpAfter: 37, enemyHpAfter: 30 }),
+    );
+    expect(snap).toEqual({ player: 37, enemy: 30 });
+  });
+
+  it('floors the player at 0 on a lethal rot tick', () => {
+    const snap = rotTickSnapshot(
+      resolution({ enemyHpBefore: 30, playerHpBefore: 3, damage: 0, heal: 0, rotTick: 5, playerHpAfter: 0, enemyHpAfter: 30 }),
+    );
+    expect(snap.player).toBe(0);
   });
 });
 
@@ -110,8 +162,11 @@ describe('turnAnimation on real engine resolutions', () => {
 
     // The move actually did something.
     expect(res.damage + res.heal).toBeGreaterThan(0);
-    // Mid enemy HP is the engine's before minus its own damage total (floored).
-    expect(mid.enemy).toBe(Math.max(0, res.enemyHpBefore - res.damage));
+    // A default-biome fight has no channels, so effective === raw.
+    expect(res.effectiveDamage).toBe(res.damage);
+    expect(res.effectiveHeal).toBe(res.heal);
+    // Mid enemy HP is the engine's before minus its own EFFECTIVE damage total (floored).
+    expect(mid.enemy).toBe(Math.max(0, res.enemyHpBefore - res.effectiveDamage));
     // End is exactly the engine's turn-final HP.
     expect(end).toEqual({ player: res.playerHpAfter, enemy: res.enemyHpAfter });
     // HP never goes negative in a checkpoint.

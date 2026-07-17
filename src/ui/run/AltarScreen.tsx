@@ -77,8 +77,10 @@ export function AltarScreen() {
         </Text>
         <Pressable
           onPress={() => {
-            const res = run.sacrificeAtAltarNode();
-            if (res !== null) setResult(res);
+            // Awaits the crash-safe meta flush before the run save clears (RunContext); reveal after.
+            void run.sacrificeAtAltarNode().then((res) => {
+              if (res !== null) setResult(res);
+            });
           }}
           style={({ pressed }) => [styles.button, styles.sacrificeButton, pressed && styles.pressed]}
         >

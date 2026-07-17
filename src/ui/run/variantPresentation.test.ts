@@ -5,6 +5,7 @@
  * text). These tests pin that mapping so the selection screen stays a thin renderer.
  */
 import {
+  GOD_OF_WAR_ID,
   INITIAL_META_STATE,
   UNLOCK_TRANCHES,
   bankRun,
@@ -44,6 +45,28 @@ describe('startCards — card list shape', () => {
   it('locks every variant on a fresh profile (only vanilla is selectable)', () => {
     const cards = startCards(INITIAL_META_STATE);
     expect(cards.filter((c) => !c.locked).map((c) => c.variantId)).toEqual([null]);
+  });
+});
+
+describe('startCards — God of War prestige card (review H3 / spec §3)', () => {
+  it('is ABSENT until earned — a secret, never shown locked', () => {
+    const cards = startCards(INITIAL_META_STATE);
+    expect(cards.some((c) => c.variantId === GOD_OF_WAR_ID)).toBe(false);
+  });
+
+  it('appears as a startable, prestige-styled card once godOfWarUnlocked', () => {
+    const earned: MetaState = { ...INITIAL_META_STATE, godOfWarUnlocked: true };
+    const card = startCards(earned).find((c) => c.variantId === GOD_OF_WAR_ID);
+    expect(card).toBeDefined();
+    expect(card?.locked).toBe(false);
+    expect(card?.prestige).toBe(true);
+    expect(card?.progress).toBeNull();
+    expect(card?.modifiers.length).toBeGreaterThan(0);
+    // Still the single source of truth: the non-locked card ids equal selectableStarts(meta).
+    const selectable = startCards(earned)
+      .filter((c) => !c.locked)
+      .map((c) => c.variantId);
+    expect(selectable).toEqual([...selectableStarts(earned)]);
   });
 });
 

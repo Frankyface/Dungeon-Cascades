@@ -17,6 +17,7 @@ import {
   INITIAL_BANK_LEDGER,
   applyContentUnlocks,
   bankRunOnce,
+  bankRunRouted,
   bankScoreOnce,
   runIdentity,
 } from './metaBanking';
@@ -37,6 +38,33 @@ describe('runIdentity', () => {
 
   it('distinguishes two runs with different seeds', () => {
     expect(runIdentity(startRun(1))).not.toBe(runIdentity(startRun(2)));
+  });
+});
+
+describe('bankRunRouted — dev-run isolation (spec §8, belt and braces)', () => {
+  const devStamp = (state: RunState): RunState => ({ ...state, isDevRun: true });
+
+  it('routes a dev-STAMPED run to the DEV slot even when dev mode is OFF (normal never touched)', () => {
+    const res = bankRunRouted(INITIAL_BANK_LEDGER, INITIAL_BANK_LEDGER, false, devStamp(act2Victory(5)));
+    expect(res.bankedDev).toBe(true);
+    expect(res.didBank).toBe(true);
+    expect(res.dev.meta.score).toBeGreaterThan(0);
+    expect(res.normal).toBe(INITIAL_BANK_LEDGER); // reference untouched — no leak into normal meta
+    expect(res.normal.meta.score).toBe(0);
+  });
+
+  it('routes a NORMAL run to the normal slot when dev mode is off', () => {
+    const res = bankRunRouted(INITIAL_BANK_LEDGER, INITIAL_BANK_LEDGER, false, act2Victory(5));
+    expect(res.bankedDev).toBe(false);
+    expect(res.normal.meta.score).toBeGreaterThan(0);
+    expect(res.dev).toBe(INITIAL_BANK_LEDGER); // dev slot untouched
+  });
+
+  it('routes to the DEV slot while dev mode is ACTIVE', () => {
+    const res = bankRunRouted(INITIAL_BANK_LEDGER, INITIAL_BANK_LEDGER, true, act2Victory(5));
+    expect(res.bankedDev).toBe(true);
+    expect(res.dev.meta.score).toBeGreaterThan(0);
+    expect(res.normal.meta.score).toBe(0);
   });
 });
 

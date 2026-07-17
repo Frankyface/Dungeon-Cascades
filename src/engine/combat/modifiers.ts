@@ -35,10 +35,17 @@ import type { TileColor } from './types';
  *   waves 2..N by the run layer. The gold channel of `onCascadeWave` is a run-layer concern
  *   (banked at combat resolution) and is intentionally NOT part of this combat seam. Applied only
  *   when supplied — omitted ⇒ byte-identical Stage-2 combat (mirrors the other transforms).
+ * - `rotImmune` (Stage-6, Rotwood): when `true`, the player-turn-start rot DoT tick is SUPPRESSED
+ *   (dealt 0) — the Heartrot Seed legendary's "immune to spore/rot damage" clause (content-relics.md
+ *   #5). Rot STACKS still accumulate and decay exactly as before, so the Sporecrown per-rot-stack
+ *   damage synergy is preserved; only the self-damage tick is zeroed. Absent/false ⇒ rot ticks as
+ *   normal ⇒ byte-identical to the pre-Heartrot engine (a capability flag, not a value transform —
+ *   there is no hook that expresses "suppress a channel tick").
  */
 export interface CombatModifiers {
   readonly damageGroup?: (baseAmount: number, color: TileColor, size: number, totalCombos: number) => number;
   readonly healGroup?: (baseAmount: number, size: number, totalCombos: number) => number;
   readonly incomingAttack?: (value: number) => number;
   readonly cascadeWave?: (waveCount: number) => { readonly enemyDamage: number; readonly playerHeal: number };
+  readonly rotImmune?: boolean;
 }

@@ -27,6 +27,15 @@ describe('computeActTransition', () => {
     expect(view.healedHp).toBe(state.playerMaxHp);
   });
 
+  it('includes the onActStart relic bonus heal in the shown total (matches advanceAct)', () => {
+    // wayfarers-draught heals +12 at each act start (onActStart playerHeal) on top of the base heal.
+    const state: RunState = { ...atTransition(3, 20), relicIds: ['wayfarers-draught'] };
+    const view = computeActTransition(state, INITIAL_META_STATE);
+    const base = Math.round(state.playerMaxHp * ACT_TRANSITION_HEAL_FRACTION);
+    expect(view.healAmount).toBe(base + 12); // total, not base-only
+    expect(view.healedHp).toBe(Math.min(state.playerMaxHp, 20 + base + 12));
+  });
+
   it('reveals the run’s seeded Act-2 biome by name + theme', () => {
     const state = atTransition(11, 30);
     const view = computeActTransition(state, INITIAL_META_STATE);

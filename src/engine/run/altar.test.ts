@@ -10,9 +10,10 @@ import {
   ALTAR_ODDS_DEEP,
   ALTAR_ODDS_SHALLOW,
   altarOdds,
+  effectiveAltarOdds,
   pickAltarUnlock,
 } from './altar';
-import { RELIC_IDS, UNLOCKED_BY_DEFAULT_IDS } from './relics';
+import { RELIC_IDS, UNLOCKED_BY_DEFAULT_IDS, getRelic } from './relics';
 import { INITIAL_META_STATE } from './meta';
 import { startRun, enterNode, sacrificeAtAltar, leaveAltar } from './runFlow';
 import { scoreForRun, runScoreInput } from './meta';
@@ -45,6 +46,33 @@ describe('altarOdds — depth-scaled rarity odds table', () => {
       expect(rows[i].common).toBeLessThan(rows[i - 1].common);
       expect(rows[i].legendary).toBeGreaterThan(rows[i - 1].legendary);
     }
+  });
+});
+
+describe('effectiveAltarOdds — true post-degradation distribution (review M2 / manager ruling)', () => {
+  const legendaryIds = RELIC_IDS.filter((id) => getRelic(id).tier === 'legendary');
+
+  it('equals the raw ramp when every rarity still has locked relics (fresh profile)', () => {
+    // A fresh profile locks commons, epics AND legendaries, so nothing degrades.
+    const eff = effectiveAltarOdds(UNLOCKED_BY_DEFAULT_IDS, 2, 12);
+    const raw = altarOdds(2, 12);
+    expect(eff.common).toBeCloseTo(raw.common, 10);
+    expect(eff.epic).toBeCloseTo(raw.epic, 10);
+    expect(eff.legendary).toBeCloseTo(raw.legendary, 10);
+  });
+
+  it('redistributes an EMPTY legendary pool: legendary reads ~0, its mass shifts to common/epic', () => {
+    const unlocked = [...UNLOCKED_BY_DEFAULT_IDS, ...legendaryIds]; // no legendaries left to draw
+    const raw = altarOdds(2, 12); // deep anchor 30/45/25
+    const eff = effectiveAltarOdds(unlocked, 2, 12);
+    expect(eff.legendary).toBe(0); // the REAL chance is 0 — not the raw 25% the old UI showed
+    expect(eff.common).toBeGreaterThan(raw.common); // the 25% redistributes by locked composition
+    expect(eff.epic).toBeGreaterThan(raw.epic);
+    expect(eff.common + eff.epic + eff.legendary).toBeCloseTo(1, 10);
+  });
+
+  it('returns all-zero when nothing is left to unlock', () => {
+    expect(effectiveAltarOdds([...RELIC_IDS], 1, 0)).toEqual({ common: 0, epic: 0, legendary: 0 });
   });
 });
 

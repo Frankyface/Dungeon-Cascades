@@ -252,6 +252,62 @@ describe('curse / curseTurns (Sunken Catacombs) — halves player heals for N tu
   });
 });
 
+describe('rotImmune (Heartrot Seed) — suppress the rot tick; stacks still accumulate/decay', () => {
+  const rotEnemy = enemy({ biome: 'rotwood', script: [{ type: 'charge', value: 0 }] });
+  const IMMUNE: CombatModifiers = { rotImmune: true };
+
+  it('deals 0 rot damage while the stacks still decay by 1', () => {
+    const res = playTurn(makeState({ enemy: rotEnemy, playerHp: 60, rotStacks: 5, board: CHECKER }), SWAP_RIGHT, undefined, undefined, IMMUNE);
+    expect(res.rotTick).toBe(0); // tick suppressed
+    expect(res.playerHpAfter).toBe(60); // no rot damage
+    expect(res.state.rotStacks).toBe(4); // decay preserved — Sporecrown perRotStack synergy intact
+  });
+
+  it('without the flag the same rot ticks for full (byte-identical control)', () => {
+    const res = playTurn(makeState({ enemy: rotEnemy, playerHp: 60, rotStacks: 5, board: CHECKER }), SWAP_RIGHT);
+    expect(res.rotTick).toBe(5);
+    expect(res.playerHpAfter).toBe(55);
+    expect(res.state.rotStacks).toBe(4);
+  });
+});
+
+describe('TurnResolution effective fields (review H1) — shown numbers equal applied ones', () => {
+  it('shield: effectiveDamage is post-shield; shieldAbsorbed reports the absorb; damage stays RAW', () => {
+    const state = makeState({ enemy: CHARGE_ONLY, enemyHp: 100, enemyShield: 4, board: boardFromRows(BBB_BOARD) });
+    const res = playTurn(state, LEFT_PATH, SAFE_REFILL);
+    expect(res.damage).toBe(6); // RAW rolled (affinity+cascade only)
+    expect(res.effectiveDamage).toBe(2); // 6 − 4 absorbed by shield
+    expect(res.shieldAbsorbed).toBe(4);
+    expect(res.armorAbsorbed).toBe(0);
+    expect(res.enemyHpAfter).toBe(98); // matches effectiveDamage applied
+  });
+
+  it('armor: effectiveDamage is post-armor; armorAbsorbed reports the softening', () => {
+    const brute = enemy({ affinity: { B: AFFINITY_WEAK }, biome: 'emberworks', script: [{ type: 'charge', value: 0 }] });
+    const res = playTurn(makeState({ enemy: brute, enemyHp: 100, enemyArmor: 5, board: boardFromRows(BBB_BOARD) }), LEFT_PATH, SAFE_REFILL);
+    expect(res.damage).toBe(6);
+    expect(res.effectiveDamage).toBe(1); // max(0, 6 − 5)
+    expect(res.armorAbsorbed).toBe(5);
+    expect(res.shieldAbsorbed).toBe(0);
+  });
+
+  it('curse: effectiveHeal is the halved heal; heal stays RAW', () => {
+    const curseEnemy = enemy({ biome: 'sunken-catacombs', script: [{ type: 'charge', value: 0 }] });
+    const res = playTurn(makeState({ enemy: curseEnemy, playerHp: 50, curseTurns: 2, board: boardFromRows(PPP_BOARD) }), LEFT_PATH, SAFE_REFILL);
+    expect(res.heal).toBe(2); // RAW rolled
+    expect(res.effectiveHeal).toBe(1); // round(2 × 0.5)
+  });
+
+  it('a plain default-biome fight reports effective === raw with 0 absorbed', () => {
+    const plain = enemy({ affinity: { B: AFFINITY_WEAK }, biome: 'glacial-crypt', script: [{ type: 'attack', value: 7 }] });
+    const res = playTurn(makeState({ enemy: plain, enemyHp: 100, board: boardFromRows(BBB_BOARD) }), LEFT_PATH, SAFE_REFILL);
+    expect(res.effectiveDamage).toBe(res.damage);
+    expect(res.effectiveHeal).toBe(res.heal);
+    expect(res.shieldAbsorbed).toBe(0);
+    expect(res.armorAbsorbed).toBe(0);
+  });
+});
+
 describe('byte-identity guard — an ABSENT channel leaves a default-biome fight untouched', () => {
   it('a plain fight adds NO channel fields and reports rotTick 0', () => {
     const plain = enemy({ affinity: { B: AFFINITY_WEAK }, biome: 'glacial-crypt', script: [{ type: 'attack', value: 7 }] });

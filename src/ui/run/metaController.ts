@@ -20,7 +20,7 @@ import { devMetaReset, devUnlockAllMeta, loadMeta } from '../../engine/run';
 import type { MetaState, RunState, UnlockEvent } from '../../engine/run';
 import { AsyncStorageMetaStore } from './asyncStorageMetaStore';
 import { DEV_META_STORAGE_KEY } from './metaStorageKeys';
-import { INITIAL_BANK_LEDGER, applyContentUnlocks, bankRunOnce } from './metaBanking';
+import { INITIAL_BANK_LEDGER, applyContentUnlocks, bankRunRouted } from './metaBanking';
 import type { BankLedger, BankOutcome } from './metaBanking';
 
 const store = new AsyncStorageMetaStore();
@@ -81,15 +81,17 @@ export function metaState(): MetaState {
  * ledger's once-guard makes this idempotent per run: a re-mounted / re-visited outcome screen calls
  * this again and gets the SAME outcome back WITHOUT double-counting. A real (first-time) bank is
  * flushed to disk; a replayed bank touches neither the ledger nor storage. Routes to the dev slot
- * while dev mode is active, so a dev-mode run never pollutes the normal profile.
+ * while dev mode is active OR the run is `isDevRun`-stamped (belt and braces, spec §8), so a dev run
+ * never pollutes the normal profile even if the dev toggle was flipped off after the run started.
  */
 export function bankRunOutcome(state: RunState): BankOutcome {
-  const { ledger: next, outcome, didBank } = bankRunOnce(activeLedger(), state);
-  setActiveLedger(next);
-  if (didBank) {
-    activeStore().save(outcome.meta);
+  const routed = bankRunRouted(ledger, devLedger, devActive, state);
+  ledger = routed.normal;
+  devLedger = routed.dev;
+  if (routed.didBank) {
+    (routed.bankedDev ? devStore : store).save(routed.outcome.meta);
   }
-  return outcome;
+  return routed.outcome;
 }
 
 /**
@@ -115,6 +117,17 @@ export function bankContentUnlocksNow(state: RunState): readonly UnlockEvent[] {
 export function adoptMeta(meta: MetaState): void {
   setActiveLedger({ ...activeLedger(), meta });
   activeStore().save(meta);
+}
+
+/**
+ * Like `adoptMeta`, but AWAITS the disk flush — the crash-safe sink for the Altar sacrifice (spec §2c).
+ * The caller (RunContext) awaits this BEFORE it saves the terminal run, so the permanent relic unlock
+ * is durable before the run slot clears: a crash between the two writes preserves the unlock (which
+ * cannot be re-derived) instead of losing it. Ledger update is synchronous; only the flush is awaited.
+ */
+export function adoptMetaFlush(meta: MetaState): Promise<void> {
+  setActiveLedger({ ...activeLedger(), meta });
+  return activeStore().saveAndFlush(meta);
 }
 
 // ── Dev mode (spec §8) ────────────────────────────────────────────────────────────────────
