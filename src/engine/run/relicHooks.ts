@@ -114,6 +114,19 @@ export function applyCascadeWaveHooks(
   return Math.max(0, Math.round(total));
 }
 
+// STILL-DEFERRED (wave 1c note) — the two apply-site CLAMPS below live in the COMBAT engine, which
+// this wave's boundary keeps byte-identical (only additive run-layer threading is permitted), and
+// every relic they guard is LOCKED (never in the current sim/drafts), so there is zero balance
+// impact today. They land in the combat-relic-integration wave that wires the expansion relics into
+// live combat:
+//   • tremor-stone "enemy HP floored at 1" (content-relics.md #20): the onCascadeWave enemyDamage is
+//     applied in combat (encounter.ts) combined with the move damage and floored at 0 — the passive
+//     cascade chip could theoretically take the kill. Flooring the CASCADE portion at 1 (so only the
+//     player's match damage can land the kill) needs restructuring combat's damage application.
+//   • per-group ≥0 clamp (ironroot-aegis, counterweight-sigil, tidal-coffers, zenith-chalice): a
+//     negative additive/mul fold on a single damageGroup could push a group amount below 0; the
+//     aggregate move damage is already floored at 0 at the HP-apply site, so no enemy is ever HEALED,
+//     but a strict per-group ≥0 clamp is a combat-engine (effects.ts accumulator) change.
 /** onCascadeWave — direct enemy HP loss summed over waves 2..N (rounded ≥0). */
 export function cascadeWaveEnemyDamage(
   waveCount: number,
@@ -155,6 +168,7 @@ function anyRelicHasHook(hook: HookName, relicIds: readonly string[], registry: 
 export function buildCombatModifiers(
   relicIds: readonly string[],
   registry: RelicRegistry = RELIC_REGISTRY,
+  context: Pick<RelicContext, 'rotStacks'> = {},
 ): CombatModifiers {
   const mods: {
     damageGroup?: CombatModifiers['damageGroup'];
@@ -164,8 +178,11 @@ export function buildCombatModifiers(
   } = {};
 
   if (anyRelicHasHook('onDamageComputed', relicIds, registry)) {
+    // The current player rot stacks are baked into the damage context (wave 1c) so the Rotwood
+    // `perRotStack` damage relics (Sporecrown) actually scale in live combat. Absent (non-Rotwood
+    // fights, base-12 runs) it is `undefined` ⇒ 0 ⇒ byte-identical to the pre-threading behavior.
     mods.damageGroup = (baseAmount, color, _size, totalCombos) =>
-      applyRelicHooks('onDamageComputed', baseAmount, { color, totalCombos }, relicIds, registry);
+      applyRelicHooks('onDamageComputed', baseAmount, { color, totalCombos, rotStacks: context.rotStacks }, relicIds, registry);
   }
   if (anyRelicHasHook('onHealComputed', relicIds, registry)) {
     mods.healGroup = (baseAmount, _size, totalCombos) =>
@@ -359,6 +376,8 @@ export function playTurnWithRelics(
   });
   const healed: CombatState =
     regen > 0 ? { ...state, playerHp: Math.min(state.playerMaxHp, state.playerHp + regen) } : state;
-  const modifiers = buildCombatModifiers(relicIds, registry);
+  // Thread the player's current rot stacks into the damage context so Rotwood `perRotStack` damage
+  // relics evaluate in live combat; non-Rotwood fights carry no rot ⇒ byte-identical to before.
+  const modifiers = buildCombatModifiers(relicIds, registry, { rotStacks: state.rotStacks });
   return playTurn(healed, path, options.source, options.config, modifiers);
 }

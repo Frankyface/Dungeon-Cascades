@@ -83,8 +83,10 @@ describe('boss fairness — what you see is what fires (every turn, across phase
     }
 
     // The fight completed AND actually crossed at least one phase boundary — the invariant
-    // above was exercised across a transition, not just within phase 0.
-    expect(state.status).toBe('victory');
+    // above was exercised across a transition, not just within phase 0. Beating the ACT-1 boss now
+    // enters the act transition (the run stays active), rather than ending in victory.
+    expect(state.status).toBe('active');
+    expect(state.phase.kind).toBe('act_transition');
     expect(maxPhaseSeen).toBeGreaterThanOrEqual(1);
   });
 
@@ -160,7 +162,7 @@ describe('boss fairness — what you see is what fires (every turn, across phase
     expect(r2.resolution.enemyAction).toEqual(expected.script[0]);
   });
 
-  it('killing the boss on the crossing turn ends in victory with no phantom new-phase action', () => {
+  it('killing the boss on the crossing turn enters the act transition with no phantom new-phase action', () => {
     const { state: start } = bossCombat(42);
     const path = greedyComboPath(combatPhase(start).encounter.board);
     const d = playEncounterTurn(start, path, OPTIONS).resolution.damage;
@@ -171,8 +173,9 @@ describe('boss fairness — what you see is what fires (every turn, across phase
 
     expect(resolution.status).toBe('won');
     expect(resolution.enemyAction).toBeNull(); // a dead boss never acts
-    expect(after.status).toBe('victory');
-    expect(after.phase.kind).toBe('ended');
+    // The ACT-1 boss kill enters the act transition (run still active); the ACT-2 boss kill would win.
+    expect(after.status).toBe('active');
+    expect(after.phase.kind).toBe('act_transition');
   });
 
   it('save/load immediately after the crossing turn continues identically to never saving', () => {

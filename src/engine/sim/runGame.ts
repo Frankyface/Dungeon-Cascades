@@ -64,12 +64,15 @@ export function playRun(seed: number, bot: RunBotName, stepCap: number, variantI
     if (goldDelta > 0) goldEarned += goldDelta;
     else if (goldDelta < 0) goldSpent += -goldDelta;
 
-    // Entering combat from a non-combat phase = a fresh encounter.
+    // Entering combat from a non-combat phase = a fresh encounter. The death-cause label reads the
+    // `enemy` override's real id when present (so an Act-2 biome fight attributes to e.g.
+    // `fight:permafrost-warden`, not the nominal `enemyId`); Act-1 fights carry the base id there, so
+    // their cause labels are unchanged.
     if (beforeKind !== 'combat' && next.phase.kind === 'combat') {
       const kind = next.phase.encounterKind;
       if (kind === 'boss') bossReached = true;
       else encounters++;
-      active = { kind, enemyId: next.phase.encounter.enemyId, floor: node.floor };
+      active = { kind, enemyId: next.phase.encounter.enemy?.id ?? next.phase.encounter.enemyId, floor: node.floor };
     }
 
     // Death is attributed to the encounter in progress (only combat can kill).

@@ -14,21 +14,38 @@
  * seed); never mutates input.
  */
 import { createRng } from '../board';
-import type { CombatConfig, EnemyId, Enemy, TurnResolution } from '../combat';
+import type { CombatConfig, CombatState, EnemyId, Enemy, TurnResolution } from '../combat';
 import type { TileSource } from '../board';
 import { generateMap, difficultyAt } from './mapGen';
 import { createMapState, currentNode, moveTo } from './mapNav';
-import { mapSeedFor, nodeSeedKey, enemySeedFor, encounterSeedFor, shopSeedFor, eventSeedFor, draftSeedFor } from './runSeeds';
-import { selectEnemy, scaledEnemyFor } from './enemyScaling';
-import { bossEnemyForPhase, bossMaxHp, syncBossPhase } from './boss';
-import { startEncounterWithRelics, playTurnWithRelics } from './relicHooks';
+import { mapSeedFor, mapSeedForAct, act2BiomeSeedFor, nodeSeedKey, enemySeedFor, encounterSeedFor, shopSeedFor, eventSeedFor, draftSeedFor } from './runSeeds';
+import { selectEnemy, scaledEnemyFor, selectBiomeEnemy, scaledBiomeEnemyFor } from './enemyScaling';
+import { bossEnemyForPhase, bossEnemyForPhaseOf, bossMaxHp, bossMaxHpFor, syncBossPhase, syncBossPhaseOf } from './boss';
+import type { BossSyncResult } from './boss';
+import { getBossForBiome } from './biomeBosses';
+import { selectAct2Biome } from './biomes';
+import {
+  startEncounterWithRelics,
+  playTurnWithRelics,
+  cascadeWaveGold,
+  enemyDefeatedGold,
+  enemyDefeatedPlayerHeal,
+  actStartGold,
+  actStartPlayerHeal,
+} from './relicHooks';
 import { draftOptions, applyDraft } from './draft';
 import { computeGoldReward } from './gold';
 import { generateShop } from './shop';
 import { eventForSeed } from './events';
 import { createRestState } from './rest';
 import { STARTING_GOLD } from './economyConfig';
-import { BOSS_NOMINAL_ENEMY_ID, RUN_PLAYER_MAX_HP } from './runConfig';
+import {
+  BOSS_NOMINAL_ENEMY_ID,
+  RUN_PLAYER_MAX_HP,
+  ACT2_NOMINAL_ENEMY_ID,
+  ACT_TRANSITION_HEAL_FRACTION,
+  actFloorOffset,
+} from './runConfig';
 import { getVariant, resolveVariantStart } from './variants';
 import type { RunVariant } from './variants';
 import { assertRunActive, assertRunPhase } from './runTypes';
@@ -57,6 +74,9 @@ function finalize(state: RunState, status: RunStatus): RunState {
  */
 export function startRun(seed: number, variantId?: string): RunState {
   const map = generateMap(mapSeedFor(seed));
+  // The Act-2 biome is fixed at start (a pure function of the seed on its own RNG stream, so it
+  // perturbs no Act-1 content and round-trips losslessly). It is inert until the act transition.
+  const act2BiomeId = selectAct2Biome(createRng(act2BiomeSeedFor(seed))).biomeId;
   const base: RunState = {
     version: 1,
     seed,
@@ -67,6 +87,8 @@ export function startRun(seed: number, variantId?: string): RunState {
     gold: STARTING_GOLD,
     relicIds: [],
     nodesCompleted: 0,
+    act: 1,
+    act2BiomeId,
     phase: { kind: 'awaiting_node' },
     status: 'active',
   };
@@ -124,23 +146,42 @@ export function enterNode(state: RunState, options: RunOptions = {}): RunState {
   assertRunActive(state);
   assertRunPhase(state, 'awaiting_node');
   const node = currentNode(state.map, state.mapState);
-  const key = nodeSeedKey(node.floor, node.index);
+  // Difficulty + every per-node seed key use the GLOBAL floor (Act-2 continues the curve: local
+  // floor f in act A → global f + actFloorOffset(A)). Act 1's offset is 0, so its keys/difficulty
+  // are byte-identical to the pre-two-act engine; Act 2's offset (13) both hardens the curve and
+  // keeps Act-2 node seeds distinct from Act-1's same-coordinate nodes.
+  const globalFloor = node.floor + actFloorOffset(state.act);
+  const key = nodeSeedKey(globalFloor, node.index);
 
   switch (node.type) {
     case 'fight':
     case 'elite': {
       const isElite = node.type === 'elite';
-      // The opening encounter (floor 0) is always the intro slime (docs/decisions.md calls slime
-      // "the intro enemy") — this makes the first fight a gentle on-ramp and prevents a
-      // catastrophic first-fight skeleton before the player owns any relics. Later floors draw
-      // the full pool seeded by node coordinate.
-      const enemyId = node.floor === 0 ? 'slime' : selectEnemy(createRng(enemySeedFor(state.seed, key))).enemyId;
-      const enemyDef = scaledEnemyFor(enemyId, node.floor, isElite);
-      return enterCombat(state, enemyId, enemyDef, isElite ? 'elite' : 'fight', encounterSeedFor(state.seed, key), options);
+      if (state.act === 1) {
+        // The Act-1 opening encounter (floor 0) is always the intro slime (docs/decisions.md calls
+        // slime "the intro enemy") — a gentle on-ramp that prevents a catastrophic first-fight
+        // skeleton before the player owns any relics. Later floors draw the full pool by coordinate.
+        const enemyId = node.floor === 0 ? 'slime' : selectEnemy(createRng(enemySeedFor(state.seed, key))).enemyId;
+        const enemyDef = scaledEnemyFor(enemyId, globalFloor, isElite);
+        return enterCombat(state, enemyId, enemyDef, isElite ? 'elite' : 'fight', encounterSeedFor(state.seed, key), options);
+      }
+      // Act 2: draw from the run's Act-2 biome kit (four biome enemies). The player is established
+      // (relics + the transition heal), so there is no on-ramp special case. The biome enemy reaches
+      // combat through the `enemy` override; the narrow `enemyId` is the nominal placeholder.
+      const biomeEnemyId = selectBiomeEnemy(createRng(enemySeedFor(state.seed, key)), state.act2BiomeId).enemyId;
+      const enemyDef = scaledBiomeEnemyFor(biomeEnemyId, globalFloor, isElite);
+      return enterCombat(state, ACT2_NOMINAL_ENEMY_ID, enemyDef, isElite ? 'elite' : 'fight', encounterSeedFor(state.seed, key), options);
     }
     case 'boss': {
-      const diff = difficultyAt(node.floor);
-      const enemyDef = bossEnemyForPhase(0, bossMaxHp(node.floor), diff);
+      const diff = difficultyAt(globalFloor);
+      if (state.act === 1) {
+        // Act-1 boss = the Bone Colossus on the exact existing byte-identical path.
+        const enemyDef = bossEnemyForPhase(0, bossMaxHp(globalFloor), diff);
+        return enterCombat(state, BOSS_NOMINAL_ENEMY_ID, enemyDef, 'boss', encounterSeedFor(state.seed, key), options);
+      }
+      // Act-2 boss = the run's Act-2 biome boss, driven through the generic per-boss phase machinery.
+      const boss = getBossForBiome(state.act2BiomeId);
+      const enemyDef = bossEnemyForPhaseOf(boss, 0, bossMaxHpFor(boss.baseHp, globalFloor), diff);
       return enterCombat(state, BOSS_NOMINAL_ENEMY_ID, enemyDef, 'boss', encounterSeedFor(state.seed, key), options);
     }
     case 'shop': {
@@ -179,13 +220,20 @@ export function playEncounterTurn(state: RunState, path: Path, options: RunOptio
   let encounter = phase.encounter;
   let bossPhase = phase.bossPhase;
   const isBoss = phase.encounterKind === 'boss';
-  const bossDiff = isBoss ? difficultyAt(currentNode(state.map, state.mapState).floor) : 0;
+  const bossDiff = isBoss ? difficultyAt(currentNode(state.map, state.mapState).floor + actFloorOffset(state.act)) : 0;
+  // Which boss's phase data drives the sync: Act 1 = the Bone Colossus (narrow `syncBossPhase`,
+  // byte-identical); Act 2 = the run's biome boss (generic `syncBossPhaseOf`).
+  const runBoss = isBoss && state.act === 2 ? getBossForBiome(state.act2BiomeId) : null;
+  const syncBoss = (enc: CombatState, ph: number): BossSyncResult =>
+    runBoss === null
+      ? syncBossPhase(enc, ph, enc.enemyMaxHp, bossDiff)
+      : syncBossPhaseOf(runBoss, enc, ph, enc.enemyMaxHp, bossDiff);
 
   // Boss: defensive pre-move re-sync. Since the end-of-turn sync below (fix 2026-07-16) keeps
   // the stored phase/telegraph in step with HP, this is a NO-OP for any state this engine
   // produces — it only corrects a legacy save persisted mid-transition by a pre-fix build.
   if (isBoss) {
-    const sync = syncBossPhase(encounter, bossPhase, encounter.enemyMaxHp, bossDiff);
+    const sync = syncBoss(encounter, bossPhase);
     encounter = sync.encounter;
     bossPhase = sync.phase;
   }
@@ -194,29 +242,47 @@ export function playEncounterTurn(state: RunState, path: Path, options: RunOptio
     source: options.source,
     config: options.combatConfig,
   });
-  const withHp: RunState = { ...state, playerHp: resolution.state.playerHp };
+  // Bank the onCascadeWave GOLD channel here (wave 1b contract): the enemy-damage + player-heal
+  // channels are applied INSIDE combat by playTurnWithRelics; gold is a run-layer concern banked at
+  // resolution — never double-applied. It is 0 unless an owned relic feeds `gold` per cascade wave.
+  const cascadeGold = cascadeWaveGold(resolution.move.waves.length, state.relicIds);
+  const withHp: RunState = { ...state, playerHp: resolution.state.playerHp, gold: state.gold + cascadeGold };
 
   if (resolution.status === 'lost') {
     return { state: finalize(withHp, 'defeat'), resolution };
   }
 
   if (resolution.status === 'won') {
+    const isBossKind = phase.encounterKind === 'boss';
     const isElite = phase.encounterKind === 'elite';
-    const gold = computeGoldReward(
-      { turns: resolution.state.turn, hpRetained: resolution.state.playerHp, maxHp: state.playerMaxHp, isElite },
-      state.relicIds,
-    );
-    const won: RunState = { ...withHp, gold: state.gold + gold };
+    // Performance-scaled gold pays on a fight/elite win; the boss pays no draft gold.
+    const perfGold = isBossKind
+      ? 0
+      : computeGoldReward(
+          { turns: resolution.state.turn, hpRetained: resolution.state.playerHp, maxHp: state.playerMaxHp, isElite },
+          state.relicIds,
+        );
+    // onEnemyDefeated relic side-channels (wave 1b) fire once per defeated enemy — bonus gold and a
+    // capped bonus heal — on EVERY combat win (fight, elite, boss). 0 without an owned relic.
+    const bonusGold = enemyDefeatedGold(state.relicIds);
+    const healedHp = Math.min(state.playerMaxHp, resolution.state.playerHp + enemyDefeatedPlayerHeal(state.relicIds));
+    const won: RunState = { ...withHp, playerHp: healedHp, gold: withHp.gold + perfGold + bonusGold };
 
-    if (phase.encounterKind === 'boss') {
+    if (isBossKind) {
+      // Act-1 boss beaten → the act transition (heal + onActStart + Act-2 map are applied by
+      // `advanceAct`). Act-2 boss beaten → run victory.
+      if (state.act === 1) {
+        return { state: { ...won, phase: { kind: 'act_transition' } }, resolution };
+      }
       return { state: finalize(won, 'victory'), resolution };
     }
 
-    // Post-win draft (pick-1-of-3); empty pool ⇒ skip straight to the move choice (no wedge).
+    // Post-win draft (pick-1-of-3); empty pool ⇒ skip straight to the move choice (no wedge). The
+    // draft seed uses the GLOBAL floor so Act-2 drafts never collide with Act-1's same-coordinate node.
     const node = currentNode(state.map, state.mapState);
     const { options: opts } = draftOptions(
       state.relicIds,
-      createRng(draftSeedFor(state.seed, nodeSeedKey(node.floor, node.index))),
+      createRng(draftSeedFor(state.seed, nodeSeedKey(node.floor + actFloorOffset(state.act), node.index))),
       isElite ? 'epic' : 'common', // migration-mechanical: relic tiers normal→common, elite→epic
     );
     const phaseNext: RunState['phase'] = opts.length === 0 ? { kind: 'awaiting_move' } : { kind: 'draft', options: opts };
@@ -236,7 +302,7 @@ export function playEncounterTurn(state: RunState, path: Path, options: RunOptio
   let nextEncounter = resolution.state;
   let outResolution = resolution;
   if (isBoss) {
-    const sync = syncBossPhase(nextEncounter, bossPhase, nextEncounter.enemyMaxHp, bossDiff);
+    const sync = syncBoss(nextEncounter, bossPhase);
     if (sync.phase !== bossPhase) {
       nextEncounter = sync.encounter;
       bossPhase = sync.phase;
@@ -246,6 +312,35 @@ export function playEncounterTurn(state: RunState, path: Path, options: RunOptio
   return {
     state: { ...withHp, phase: { kind: 'combat', encounter: nextEncounter, encounterKind: phase.encounterKind, bossPhase } },
     resolution: outResolution,
+  };
+}
+
+/**
+ * Resolve the ACT TRANSITION after the Act-1 boss (spec-systems.md §1): heal the player by
+ * `ACT_TRANSITION_HEAL_FRACTION` of max HP (capped), fire the wave-1b `onActStart` relic hooks
+ * (bonus gold + a capped bonus heal), then generate the Act-2 map in the run's Act-2 biome and park
+ * at its start node in `act: 2`. Pure; requires an active run in the `act_transition` phase.
+ */
+export function advanceAct(state: RunState): RunState {
+  assertRunActive(state);
+  assertRunPhase(state, 'act_transition');
+
+  // 1. Transition heal — heal BY a fraction of max HP (capped), mirroring the rest-node convention.
+  const transitionHeal = Math.round(state.playerMaxHp * ACT_TRANSITION_HEAL_FRACTION);
+  let playerHp = Math.min(state.playerMaxHp, state.playerHp + transitionHeal);
+  // 2. onActStart relic hooks (wave 1b): bonus gold + a capped bonus heal on top of the transition.
+  const gold = state.gold + actStartGold(state.relicIds);
+  playerHp = Math.min(state.playerMaxHp, playerHp + actStartPlayerHeal(state.relicIds));
+  // 3. Generate the Act-2 map (same generator, independent layout stream) and park at its start.
+  const map = generateMap(mapSeedForAct(state.seed, 2));
+  return {
+    ...state,
+    act: 2,
+    playerHp,
+    gold,
+    map,
+    mapState: createMapState(map),
+    phase: { kind: 'awaiting_node' },
   };
 }
 

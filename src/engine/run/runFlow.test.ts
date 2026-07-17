@@ -4,13 +4,30 @@
  * rejection of all further actions. Combat is driven with the deterministic greedy / trivial
  * policies from runPolicy so outcomes are reproducible.
  */
-import { startRun, enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, abandonRun } from './runFlow';
+import { startRun, enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, advanceAct, abandonRun } from './runFlow';
 import { buyFromShop, leaveShop, chooseEventOption, restAtNode, leaveRest } from './runNodes';
 import { greedyComboPath, trivialSwapPath } from './runPolicy';
 import { bossMaxHp } from './boss';
+import { getBossForBiome } from './biomeBosses';
+import { getBiome, ACT2_BIOME_IDS } from './biomes';
+import { BIOME_ENEMY_IDS } from '../combat';
 import { legalNextNodes } from './mapNav';
 import type { NodeType } from './mapTypes';
 import type { RunState } from './runTypes';
+
+/** Craft a run already IN Act 2 (parked on the Act-2 map's start), via a real act transition. */
+function craftAct2(seed: number): RunState {
+  const transitioned = advanceAct({ ...startRun(seed), phase: { kind: 'act_transition' } });
+  return transitioned;
+}
+
+/** Craft an Act-2 run positioned at the first node of `type` on the Act-2 map. */
+function craftAct2At(seed: number, type: NodeType, overrides: Partial<RunState> = {}): RunState {
+  const base = craftAct2(seed);
+  const node = base.map.nodes.find((n) => n.type === type);
+  if (!node) throw new Error(`no ${type} node in Act-2 map for seed ${seed}`);
+  return { ...base, mapState: { currentNodeId: node.id, visited: [node.id] }, ...overrides };
+}
 
 /** Craft a run positioned (for enterNode testing) at the first node of `type`. */
 function craftAt(seed: number, type: NodeType, overrides: Partial<RunState> = {}): RunState {
@@ -103,8 +120,8 @@ describe('combat resolution → gold + draft (win) / defeat (loss)', () => {
     expect(lost.playerHp).toBe(0);
   });
 
-  it('killing the boss ends the run in victory', () => {
-    // Enter the boss, then drop it to 1 HP and land a finishing hit.
+  it('killing the ACT-1 boss enters the act transition (not victory)', () => {
+    // Enter the Act-1 boss, then drop it to 1 HP and land a finishing hit.
     const entered = enterNode(craftAt(42, 'boss'));
     if (entered.phase.kind !== 'combat') throw new Error('expected combat');
     const nearDead: RunState = {
@@ -112,8 +129,69 @@ describe('combat resolution → gold + draft (win) / defeat (loss)', () => {
       phase: { ...entered.phase, encounter: { ...entered.phase.encounter, enemyHp: 1 } },
     };
     const done = fightOut(nearDead, greedyComboPath);
+    expect(done.status).toBe('active'); // Act-1 boss beaten ⇒ transition, run still active
+    expect(done.phase.kind).toBe('act_transition');
+    expect(done.act).toBe(1); // act flips only on advanceAct
+  });
+
+  it('killing the ACT-2 boss ends the run in victory', () => {
+    const entered = enterNode(craftAct2At(42, 'boss'));
+    if (entered.phase.kind !== 'combat') throw new Error('expected combat');
+    expect(entered.phase.encounterKind).toBe('boss');
+    const nearDead: RunState = {
+      ...entered,
+      phase: { ...entered.phase, encounter: { ...entered.phase.encounter, enemyHp: 1 } },
+    };
+    const done = fightOut(nearDead, greedyComboPath);
     expect(done.status).toBe('victory');
     expect(done.phase.kind).toBe('ended');
+  });
+});
+
+describe('act transition (Act 1 → Act 2)', () => {
+  it('advanceAct heals ~50% of max, generates the Act-2 map, and parks at its start in act 2', () => {
+    const s0 = startRun(42);
+    const atTransition: RunState = { ...s0, playerHp: 10, phase: { kind: 'act_transition' } };
+    const after = advanceAct(atTransition);
+    expect(after.act).toBe(2);
+    expect(after.playerHp).toBe(Math.min(60, 10 + Math.round(60 * 0.5))); // 10 + 30 = 40
+    expect(after.phase.kind).toBe('awaiting_node');
+    expect(after.mapState.currentNodeId).toBe(after.map.startId);
+    // A NEW map (independent Act-2 layout stream) replaces the Act-1 map.
+    expect(after.map).not.toEqual(s0.map);
+    // act2BiomeId is unchanged by the transition (fixed at start, deterministic per seed).
+    expect(after.act2BiomeId).toBe(s0.act2BiomeId);
+  });
+
+  it('the transition heal caps at max HP', () => {
+    const after = advanceAct({ ...startRun(42), playerHp: 55, phase: { kind: 'act_transition' } });
+    expect(after.playerHp).toBe(60); // 55 + 30 capped at 60
+  });
+
+  it('advanceAct rejects a run that is not in the act_transition phase', () => {
+    expect(() => advanceAct(startRun(42))).toThrow(/expected phase 'act_transition'/i);
+  });
+});
+
+describe('Act-2 encounters draw from the run\'s Act-2 biome', () => {
+  it('an Act-2 fight uses one of the biome\'s four exclusive enemies (via the enemy override)', () => {
+    const s = enterNode(craftAct2At(42, 'fight'));
+    if (s.phase.kind !== 'combat') throw new Error('expected combat');
+    const biome = getBiome(s.act2BiomeId);
+    expect(ACT2_BIOME_IDS).toContain(s.act2BiomeId);
+    expect(s.phase.encounter.enemy).toBeDefined();
+    expect(biome.enemyIds).toContain(s.phase.encounter.enemy!.id);
+    expect(BIOME_ENEMY_IDS).toContain(s.phase.encounter.enemy!.id);
+  });
+
+  it('the Act-2 boss is the biome\'s boss, at the continued (floor 13+) scaling', () => {
+    const entered = enterNode(craftAct2At(42, 'boss'));
+    if (entered.phase.kind !== 'combat') throw new Error('expected combat');
+    const boss = getBossForBiome(craftAct2(42).act2BiomeId);
+    expect(entered.phase.encounter.enemy!.id).toBe(boss.id);
+    expect(entered.phase.encounter.enemy!.biome).toBe(boss.biome);
+    // Continued difficulty: the Act-2 boss HP exceeds the same boss's Act-1-floor HP (harder).
+    expect(entered.phase.encounter.enemyMaxHp).toBeGreaterThan(boss.baseHp);
   });
 });
 

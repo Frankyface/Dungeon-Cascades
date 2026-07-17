@@ -17,7 +17,7 @@ import type { Board, Direction, Path } from '../board';
 import { legalNextNodes } from './mapNav';
 import { getEvent } from './events';
 import { buyShopItem } from './shop';
-import { enterNode, playEncounterTurn, resolveDraftPick, advanceToNode } from './runFlow';
+import { enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, advanceAct } from './runFlow';
 import type { RunOptions } from './runFlow';
 import { buyFromShop, leaveShop, chooseEventOption, restAtNode, leaveRest } from './runNodes';
 import type { RunState } from './runTypes';
@@ -169,6 +169,8 @@ export function stepRun(state: RunState, combatPath: (board: Board) => Path, opt
       return phase.rest.rested ? leaveRest(state) : restAtNode(state);
     case 'awaiting_move':
       return advanceToNode(state, legalNextNodes(state.map, state.mapState)[0]);
+    case 'act_transition':
+      return advanceAct(state); // the single forced transition into Act 2 (heal + onActStart + map)
     case 'ended':
       return state;
   }

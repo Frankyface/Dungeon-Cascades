@@ -179,3 +179,28 @@ export function syncBossPhase(
     phase: desired,
   };
 }
+
+/**
+ * `syncBossPhase` generalized over ANY boss (the Bone Colossus or an Act-2 biome boss): identical
+ * HP-fraction phase logic and fairness contract, but the swapped-in phase enemy is drawn from the
+ * supplied boss's data via `bossEnemyForPhaseOf` (carrying its real id + biome). The Act-1 flow keeps
+ * using the narrow `syncBossPhase` so the dungeon boss stays byte-identical; the Act-2 flow uses this.
+ * Pure; never mutates input.
+ */
+export function syncBossPhaseOf(
+  boss: Boss,
+  encounter: CombatState,
+  currentPhase: number,
+  maxHp: number,
+  diff: number,
+): BossSyncResult {
+  const desired = bossPhaseForHp(encounter.enemyHp, encounter.enemyMaxHp);
+  if (desired === currentPhase) {
+    return { encounter, phase: currentPhase };
+  }
+  const enemy = bossEnemyForPhaseOf(boss, desired, maxHp, diff);
+  return {
+    encounter: { ...encounter, enemy, intentIndex: 0, telegraph: enemy.script[0] },
+    phase: desired,
+  };
+}

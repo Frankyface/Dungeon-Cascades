@@ -30,6 +30,7 @@ import {
   shopPurchasePlayerHeal,
   shopPrice,
   turnStartRegen,
+  playTurnWithRelics,
 } from './relicHooks';
 import { RELIC_REGISTRY, assertRelicWellFormed } from './relics';
 import type { Relic } from './relicTypes';
@@ -217,6 +218,37 @@ describe('conditions — playerHpBelow (comeback gate)', () => {
     expect(turnStartRegen(['trollblood-charm'], RELIC_REGISTRY, { playerHpFraction: 0.5 })).toBe(0); // strictly below
     // No context ⇒ treated as full HP ⇒ inert.
     expect(turnStartRegen(['trollblood-charm'])).toBe(0);
+  });
+});
+
+describe('scalers — perRotStack THREADED into live combat (wave 1c)', () => {
+  // playTurnWithRelics bakes the player's current rot stacks into the damage context, so Sporecrown
+  // actually scales damage in a real Rotwood fight. RRR_BOARD + LEFT_PATH make col0 a vertical R
+  // triple; slime is WEAK to R (×2) ⇒ a base group of 3×2 = 6. Sporecrown at 5 rot stacks = +40%.
+  const RRR = boardFromRows(['BRG', 'RBG', 'RGB']);
+  const LEFT: Path = { start: { col: 1, row: 0 }, steps: ['left'] };
+  const REFILL = scriptedSource(['Y', 'B', 'Y', 'G', 'B', 'Y', 'Y', 'B', 'Y']);
+  const withRot = (rotStacks: number): CombatState => ({
+    enemyId: 'slime',
+    board: RRR,
+    rngState: createRng(0),
+    playerHp: 60,
+    playerMaxHp: 60,
+    enemyHp: 100,
+    enemyMaxHp: 100,
+    intentIndex: 0,
+    telegraph: { type: 'attack', value: 8 },
+    status: 'ongoing',
+    turn: 0,
+    rotStacks,
+  });
+
+  it('Sporecrown boosts damage by +8%/stack when the player carries rot (vs no rot → no boost)', () => {
+    const boosted = playTurnWithRelics(withRot(5), LEFT, ['sporecrown'], { source: REFILL });
+    const plain = playTurnWithRelics(withRot(0), LEFT, ['sporecrown'], { source: REFILL });
+    expect(plain.damage).toBe(6); // 3 × 2.0 (weak) — no rot ⇒ Sporecrown inert
+    expect(boosted.damage).toBe(8); // round(6 × (1 + 0.08×5)) = round(8.4)
+    expect(boosted.damage).toBeGreaterThan(plain.damage); // the rot threading actually reached combat
   });
 });
 

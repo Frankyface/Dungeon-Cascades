@@ -33,7 +33,17 @@ export {
 } from './mapNav';
 
 // ── Run seed derivation ──────────────────────────────────────────────────────
-export { deriveSeed, mapSeedFor, draftSeedFor, RUN_TAG_MAP, RUN_TAG_DRAFT } from './runSeeds';
+export {
+  deriveSeed,
+  mapSeedFor,
+  mapSeedForAct,
+  act2BiomeSeedFor,
+  draftSeedFor,
+  RUN_TAG_MAP,
+  RUN_TAG_MAP2,
+  RUN_TAG_ACT2_BIOME,
+  RUN_TAG_DRAFT,
+} from './runSeeds';
 
 // ── Relics: data model + roster ──────────────────────────────────────────────
 export type { HookName, ModifierKind, RelicTier, RelicModifier, Relic, RelicContext, RelicRegistry } from './relicTypes';
@@ -143,8 +153,12 @@ export {
   BOSS_HP_DAMPEN,
   BOSS_NOMINAL_ENEMY_ID,
   BOSS_NAME,
+  ACT_FLOOR_SPAN,
+  ACT_TRANSITION_HEAL_FRACTION,
+  ACT2_NOMINAL_ENEMY_ID,
+  actFloorOffset,
 } from './runConfig';
-export { scaleEnemy, scaledEnemyFor, selectEnemy } from './enemyScaling';
+export { scaleEnemy, scaledEnemyFor, selectEnemy, selectBiomeEnemy, scaledBiomeEnemyFor } from './enemyScaling';
 export {
   BOSS_PHASES,
   bossMaxHp,
@@ -153,6 +167,7 @@ export {
   bossEnemyForPhase,
   bossEnemyForPhaseOf,
   syncBossPhase,
+  syncBossPhaseOf,
 } from './boss';
 export type { Boss, BossPhase, BossSyncResult } from './boss';
 
@@ -173,6 +188,7 @@ export {
   BIOME_IDS,
   ACT2_BIOME_IDS,
   getBiome,
+  selectAct2Biome,
   assertBiomesWellFormed,
 } from './biomes';
 export type { Biome } from './biomes';
@@ -180,7 +196,7 @@ export type { Biome } from './biomes';
 // ── Run state + flow (the lifecycle state machine) ───────────────────────────
 export type { RunState, RunPhase, RunStatus, EncounterKind, RunAction } from './runTypes';
 export { isTerminal, legalActions, currentRunNode, assertRunActive, assertRunPhase } from './runTypes';
-export { startRun, enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, abandonRun } from './runFlow';
+export { startRun, enterNode, playEncounterTurn, resolveDraftPick, advanceToNode, advanceAct, abandonRun } from './runFlow';
 export type { RunOptions, EncounterTurnResult } from './runFlow';
 export { buyFromShop, leaveShop, chooseEventOption, restAtNode, leaveRest } from './runNodes';
 export type { ShopBuyResult } from './runNodes';

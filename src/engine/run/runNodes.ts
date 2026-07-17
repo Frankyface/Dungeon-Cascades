@@ -11,7 +11,15 @@ import { applyDraft } from './draft';
 import { buyShopItem } from './shop';
 import type { BuyResult } from './shop';
 import { resolveEventChoice, applyEventEffect } from './events';
-import { applyRest } from './rest';
+import {
+  restHealAmount,
+  restUsedPlayerHeal,
+  restUsedGold,
+  shopPrice,
+  shopPurchaseGold,
+  shopPurchasePlayerHeal,
+} from './relicHooks';
+import { REST_HEAL_FRACTION } from './economyConfig';
 import { assertRunActive, assertRunPhase } from './runTypes';
 import type { RunState } from './runTypes';
 
@@ -32,27 +40,32 @@ export function buyFromShop(state: RunState, index: number): ShopBuyResult {
   const phase = state.phase;
   if (phase.kind !== 'shop') throw new Error('unreachable');
 
-  const result = buyShopItem(phase.shop, index, state.gold);
-  if (!result.ok) {
-    return { state, result };
+  // Validate the slot (range + not-sold) with an unlimited-gold probe, so the `onShopPurchase`
+  // price VALUE-TRANSFORM decides affordability — not the sticker (Haggler's Charm ×0.60 must let
+  // you afford the discounted price). With no shop relic the transform is identity, so this stays
+  // byte-identical to the pre-hook buy.
+  const probe = buyShopItem(phase.shop, index, Number.POSITIVE_INFINITY);
+  if (!probe.ok) {
+    return { state, result: probe };
+  }
+  const effectivePrice = shopPrice(probe.item.price, state.relicIds);
+  if (state.gold < effectivePrice) {
+    return { state, result: { ok: false, reason: 'insufficient-gold' } };
   }
 
+  // Grant the item, plus the `onShopPurchase` side-channels: a capped bonus heal and a gold rebate.
   let relicIds = state.relicIds;
-  let playerHp = state.playerHp;
-  if (result.item.kind === 'relic') {
-    relicIds = applyDraft(relicIds, result.item.relicId);
+  let playerHp = Math.min(state.playerMaxHp, state.playerHp + shopPurchasePlayerHeal(state.relicIds));
+  if (probe.item.kind === 'relic') {
+    relicIds = applyDraft(relicIds, probe.item.relicId);
   } else {
-    playerHp = Math.min(state.playerMaxHp, playerHp + result.item.heal);
+    playerHp = Math.min(state.playerMaxHp, playerHp + probe.item.heal);
   }
+  const gold = state.gold - effectivePrice + shopPurchaseGold(state.relicIds);
+  const result: BuyResult = { ok: true, shop: probe.shop, item: probe.item, goldSpent: effectivePrice };
 
   return {
-    state: {
-      ...state,
-      gold: state.gold - result.goldSpent,
-      relicIds,
-      playerHp,
-      phase: { kind: 'shop', shop: result.shop },
-    },
+    state: { ...state, gold, relicIds, playerHp, phase: { kind: 'shop', shop: probe.shop } },
     result,
   };
 }
@@ -91,15 +104,27 @@ export function chooseEventOption(state: RunState, choiceIndex: number): RunStat
   };
 }
 
-/** Rest at the current site: heal 30% of max (once), then STAY (only leaving remains legal). */
+/**
+ * Rest at the current site (single-use): heal the node's base `REST_HEAL_FRACTION` of max HP, then
+ * STAY (only leaving remains legal). The `onRestUsed` relic hooks layer on: `restHeal` VALUE-TRANSFORMS
+ * the node's own heal (Wanderer's Hearth ×2, Ascetic's Vow ×0), then the `playerHeal` side-channel adds
+ * on top (both capped at max), and the `gold` side-channel banks bonus gold. With no rest relic all
+ * three are identity/zero, so the base 30%-of-max rest is byte-identical to before.
+ */
 export function restAtNode(state: RunState): RunState {
   assertRunActive(state);
   assertRunPhase(state, 'rest');
   const phase = state.phase;
   if (phase.kind !== 'rest') throw new Error('unreachable');
+  if (phase.rest.rested) {
+    throw new Error('restAtNode: already rested at this site (single-use per node)');
+  }
 
-  const rested = applyRest(phase.rest, state.playerHp, state.playerMaxHp); // throws on a 2nd rest
-  return { ...state, playerHp: rested.hp, phase: { kind: 'rest', rest: rested.state } };
+  const baseHeal = Math.round(state.playerMaxHp * REST_HEAL_FRACTION);
+  const nodeHeal = restHealAmount(baseHeal, state.relicIds); // value-transform of the node's own heal
+  const playerHp = Math.min(state.playerMaxHp, state.playerHp + nodeHeal + restUsedPlayerHeal(state.relicIds));
+  const gold = state.gold + restUsedGold(state.relicIds);
+  return { ...state, playerHp, gold, phase: { kind: 'rest', rest: { rested: true } } };
 }
 
 /** Leave the rest site (rested or not) — advance to the move-choice phase. */

@@ -27,6 +27,7 @@ export function routeForRunState(state: RunState): RunRoute {
   switch (phase.kind) {
     case 'awaiting_node':
     case 'awaiting_move':
+    case 'act_transition': // the between-acts moment shows on the map screen (advanceAct then routes on)
       return '/run';
     case 'combat':
       return '/run/encounter';

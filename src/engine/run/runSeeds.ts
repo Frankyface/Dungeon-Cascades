@@ -28,6 +28,9 @@ export const RUN_TAG_ENEMY = 3; // which enemy a fight/elite node rolls
 export const RUN_TAG_ENCOUNTER = 4; // the fight's board + refill seed
 export const RUN_TAG_SHOP = 5; // a shop node's seeded stock
 export const RUN_TAG_EVENT = 6; // an event node's scripted-event draw + gamble rolls
+/** Stage-6 wave 1c two-act sub-streams (independent of every stream above). */
+export const RUN_TAG_MAP2 = 7; // the Act-2 map layout (a fresh stream so Act 2 ≠ Act 1)
+export const RUN_TAG_ACT2_BIOME = 8; // the seeded Act-2 biome pick (deterministic per run seed)
 
 /**
  * Derive a uint32 sub-seed from a seed and an integer tag. Deterministic and pure —
@@ -39,9 +42,26 @@ export function deriveSeed(seed: number, tag: number): number {
   return (value * UINT32) >>> 0;
 }
 
-/** The map-generation seed for a run rooted at `runSeed`. */
+/** The map-generation seed for a run rooted at `runSeed` (the Act-1 map — byte-identical to before). */
 export function mapSeedFor(runSeed: number): number {
   return deriveSeed(runSeed, RUN_TAG_MAP);
+}
+
+/**
+ * The map-generation seed for a given ACT of a run rooted at `runSeed`. Act 1 reuses the exact
+ * `mapSeedFor` stream (so an Act-1 map is byte-identical to the pre-two-act engine); Act 2 draws
+ * from an INDEPENDENT stream (`RUN_TAG_MAP2`) so its layout never mirrors Act 1's. Deterministic.
+ */
+export function mapSeedForAct(runSeed: number, act: number): number {
+  return act <= 1 ? mapSeedFor(runSeed) : deriveSeed(runSeed, RUN_TAG_MAP2);
+}
+
+/**
+ * The seed for the Act-2 biome pick of a run rooted at `runSeed`. Its own stream, so the biome is a
+ * pure function of the run seed and perturbs no other content stream (Act-1 content stays identical).
+ */
+export function act2BiomeSeedFor(runSeed: number): number {
+  return deriveSeed(runSeed, RUN_TAG_ACT2_BIOME);
 }
 
 /**

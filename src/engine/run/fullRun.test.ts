@@ -37,12 +37,15 @@ describe('full-run headless playability (zero wedges)', () => {
     expect(defeats).toBeGreaterThan(0);
   });
 
-  it('reaches VICTORY with the greedy policy — a full run through the boss', () => {
-    const res = driveRun(startRun(10), greedyComboPath);
+  it('reaches VICTORY with the greedy policy — a full TWO-ACT run through both bosses', () => {
+    // Seed 7 wins the whole two-act run (beats the Act-1 boss, transitions, then beats the Act-2
+    // boss). Victory now requires clearing BOTH acts.
+    const res = driveRun(startRun(7), greedyComboPath);
     expect(res.state.status).toBe('victory');
-    // The boss was reached and cleared (final position is the boss node).
+    expect(res.state.act).toBe(2); // finished in Act 2
+    // The Act-2 boss was reached and cleared (final position is the Act-2 map's boss node).
     expect(res.state.mapState.currentNodeId).toBe(res.state.map.bossId);
-    // Encounters on the completed path sit in the intended 8–12 band.
+    // Encounters on the completed (Act-2) path sit in the intended per-act 8–12 band.
     const enc = encountersOnPath(res.state);
     expect(enc).toBeGreaterThanOrEqual(8);
     expect(enc).toBeLessThanOrEqual(12);
@@ -57,13 +60,36 @@ describe('full-run headless playability (zero wedges)', () => {
   });
 
   it('is fully deterministic (same seed + policy ⇒ identical final RunState)', () => {
-    const a = driveRun(startRun(10), greedyComboPath).state;
-    const b = driveRun(startRun(10), greedyComboPath).state;
+    const a = driveRun(startRun(7), greedyComboPath).state;
+    const b = driveRun(startRun(7), greedyComboPath).state;
     expect(a).toEqual(b);
   });
 });
 
 describe('save/load transcript equality', () => {
+  it('round-trips across the ACT TRANSITION (save AT act_transition ⇒ identical continuation)', () => {
+    const seed = 7; // a full two-act victory, so it passes through the act_transition checkpoint
+    const straight = driveRun(startRun(seed), greedyComboPath).state;
+
+    // Step to the between-acts checkpoint (the Act-1 boss is beaten, Act 2 not yet generated).
+    let mid = startRun(seed);
+    let guard = 0;
+    while (mid.status === 'active' && mid.phase.kind !== 'act_transition' && guard++ < 4000) {
+      mid = stepRun(mid, greedyComboPath);
+    }
+    expect(mid.phase.kind).toBe('act_transition');
+    expect(mid.act).toBe(1);
+
+    const store = new InMemoryRunStore();
+    store.save(mid); // serialize mid-transition
+    const reloaded = store.load();
+    expect(reloaded).not.toBeNull();
+    const continued = driveRun(reloaded!, greedyComboPath).state;
+
+    expect(continued).toEqual(straight); // lossless across the act boundary
+    expect(continued.act).toBe(2);
+  });
+
   it('play A → save → load → play B equals playing A→B straight through', () => {
     const seed = 10;
     const straight = driveRun(startRun(seed), greedyComboPath).state;

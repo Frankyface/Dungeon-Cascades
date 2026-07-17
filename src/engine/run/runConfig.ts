@@ -8,6 +8,7 @@
  */
 import { PLAYER_MAX_HP } from '../combat';
 import type { EnemyId } from '../combat';
+import { DEFAULT_FLOOR_PLAN } from './mapConfig';
 
 /** The three base enemies a fight/elite node draws from (single-enemy fights, v1). */
 export const ENCOUNTER_POOL: readonly EnemyId[] = ['slime', 'skeleton', 'bat'];
@@ -56,3 +57,32 @@ export const BOSS_NOMINAL_ENEMY_ID: EnemyId = 'skeleton';
 
 /** Human-readable boss name (UI/telemetry; the pure engine does not depend on it). */
 export const BOSS_NAME = 'Bone Colossus';
+
+// ── Two acts (Stage-6 wave 1c) ──────────────────────────────────────────────────────────
+//
+// A run is now TWO acts: Act 1 is the default dungeon (13-floor map, Bone Colossus); Act 2 is a
+// second 13-floor map in a seeded Act-2 biome, whose difficulty CONTINUES the curve. An Act-2 node
+// at local floor `f` scales as GLOBAL floor `f + ACT_FLOOR_SPAN` (spec-systems.md §1: "floors 13–25
+// equivalent scaling"), so `difficultyAt` and every per-node seed key use the global floor.
+
+/** Floors per act (the default map's floor count). Act 2's global-floor offset is one full span. */
+export const ACT_FLOOR_SPAN = DEFAULT_FLOOR_PLAN.length; // 13 (floors 0–12; boss at 12)
+
+/** The global-floor offset added to an Act-`act` local floor: Act 1 → 0, Act 2 → 13 (floors 13–25). */
+export function actFloorOffset(act: number): number {
+  return (Math.max(1, act) - 1) * ACT_FLOOR_SPAN;
+}
+
+/**
+ * Act-transition heal: on beating the Act-1 boss the player heals this FRACTION of max HP (rounded,
+ * capped at max), mirroring the rest-node "heal BY a fraction of max" convention. Sim-tunable.
+ */
+export const ACT_TRANSITION_HEAL_FRACTION = 0.5;
+
+/**
+ * The nominal narrow `CombatState.enemyId` for an Act-2 biome fight/elite. Biome enemies (a wider
+ * `BiomeEnemyId` union) reach combat through the `CombatState.enemy` override — exactly like the
+ * boss's `BOSS_NOMINAL_ENEMY_ID` — so the narrow `enemyId` stays one of the three base ids and the
+ * UI's 3-key glyph tables never grow. Combat reads the override, never this id; it is a placeholder.
+ */
+export const ACT2_NOMINAL_ENEMY_ID: EnemyId = 'slime';

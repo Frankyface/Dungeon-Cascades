@@ -8,6 +8,8 @@
  *
  * PURE ENGINE: no React / React Native imports; deterministic; never mutates input.
  */
+import { nextInt } from '../board';
+import type { RngState } from '../board';
 import type { BiomeEnemyId, BiomeId, BossId, EnemyId } from '../combat';
 import { BIOME_ENEMY_STATS, ENEMY_STATS } from '../combat';
 import { BOSS_REGISTRY } from './biomeBosses';
@@ -94,6 +96,16 @@ export const ACT2_BIOME_IDS: readonly BiomeId[] = [
   'rotwood',
   'sunken-catacombs',
 ];
+
+/**
+ * Seeded uniform pick of an Act-2 biome from the four (equal weights, independent RNG stream). The
+ * Act-2 biome of a run is a pure function of its seed (spec-systems.md §1: "seeded-random among the
+ * player's act-2 pool"). Deterministic; threads `rngState`.
+ */
+export function selectAct2Biome(rngState: RngState): { biomeId: BiomeId; rngState: RngState } {
+  const pick = nextInt(rngState, ACT2_BIOME_IDS.length);
+  return { biomeId: ACT2_BIOME_IDS[pick.value], rngState: pick.state };
+}
 
 /** Fetch a biome by id. Throws on an unknown id — boundary validation. */
 export function getBiome(id: BiomeId): Biome {

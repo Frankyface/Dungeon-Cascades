@@ -54,11 +54,15 @@ describe('scoreRun — the run-score formula', () => {
 
 describe('runScoreInput — derived from a terminal RunState', () => {
   it('a VICTORY counts every visited encounter plus the boss, at the boss floor', () => {
-    const state = driveRun(startRun(10), greedyComboPath).state;
+    // Seed 7 wins the full TWO-ACT run (beats both bosses). Meta scoring reads the TERMINAL act's
+    // traversal (mapState is the Act-2 map after the transition), so the derivation is over the
+    // Act-2 path + the Act-2 boss. (Cumulative cross-act meta scoring is a later meta-wave concern.)
+    const state = driveRun(startRun(7), greedyComboPath).state;
     expect(state.status).toBe('victory');
+    expect(state.act).toBe(2);
     const input = runScoreInput(state);
     expect(input.victory).toBe(true);
-    expect(input.floorsCleared).toBe(state.map.floorCount - 1); // boss floor
+    expect(input.floorsCleared).toBe(state.map.floorCount - 1); // the (Act-2) boss floor
     expect(input.encountersWon).toBe(visitedEncounters(state) + 1); // + the boss
     expect(scoreForRun(state)).toBe(scoreRun(input));
   });
@@ -74,11 +78,19 @@ describe('runScoreInput — derived from a terminal RunState', () => {
   });
 
   it('a mid-run combat DEFEAT does NOT count the encounter it died in', () => {
-    // Find a greedy defeat that reached past floor 0 (a real mid-map death).
+    // Find a greedy defeat that died IN a fight/elite past floor 0 (a real mid-map death — NOT a
+    // boss death, where the death node is a `boss` type and so is never in the fight/elite count).
     let dead: RunState | null = null;
-    for (let seed = 1; seed <= 40 && dead === null; seed++) {
+    for (let seed = 1; seed <= 60 && dead === null; seed++) {
       const s = driveRun(startRun(seed), greedyComboPath).state;
-      if (s.status === 'defeat' && runScoreInput(s).floorsCleared > 0) dead = s;
+      const diedInType = nodeById(s.map, s.mapState.currentNodeId).type;
+      if (
+        s.status === 'defeat' &&
+        runScoreInput(s).floorsCleared > 0 &&
+        (diedInType === 'fight' || diedInType === 'elite')
+      ) {
+        dead = s;
+      }
     }
     expect(dead).not.toBeNull();
     const state = dead as RunState;

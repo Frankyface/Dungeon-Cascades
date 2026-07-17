@@ -9,6 +9,7 @@
 import {
   InMemoryRunStore,
   abandonRun,
+  advanceAct,
   getEvent,
   greedyComboPath,
   legalNextNodes,
@@ -39,6 +40,8 @@ function stepViaSession(state: RunState): RunState {
         : applyRunAction(state, { type: 'rest' });
     case 'awaiting_move':
       return applyRunAction(state, { type: 'travel', nodeId: legalNextNodes(state.map, state.mapState)[0] });
+    case 'act_transition':
+      return advanceAct(state); // the between-acts step (engine transition; UI provider wiring is a UI-wave follow-up)
     case 'ended':
       return state;
   }

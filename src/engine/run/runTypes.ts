@@ -12,7 +12,7 @@
  * threaded through combat / event RNG). See CLAUDE.md.
  */
 import type { RngState } from '../board';
-import type { CombatState } from '../combat';
+import type { BiomeId, CombatState } from '../combat';
 import type { MapState, RunMap } from './mapTypes';
 import type { ShopState } from './shop';
 import type { RestState } from './rest';
@@ -43,6 +43,7 @@ export type RunPhase =
   | { readonly kind: 'event'; readonly eventId: string; readonly rngState: RngState }
   | { readonly kind: 'rest'; readonly rest: RestState }
   | { readonly kind: 'awaiting_move' } // node resolved: must move to a next node
+  | { readonly kind: 'act_transition' } // Act-1 boss beaten: must advanceAct into Act 2
   | { readonly kind: 'ended' }; // terminal (see status)
 
 /** The one serializable run object: map + position, HP, gold, relics, current phase, status. */
@@ -61,6 +62,18 @@ export interface RunState {
   readonly nodesCompleted: number;
   readonly phase: RunPhase;
   readonly status: RunStatus;
+  /**
+   * Which ACT the run is in (Stage-6 wave 1c): `1` = the default dungeon (13-floor map, Bone
+   * Colossus); `2` = the seeded Act-2 biome's 13-floor map (`act2BiomeId`), ending at that biome's
+   * boss. A fresh run always starts at act 1; `advanceAct` flips it to 2 after the Act-1 boss.
+   */
+  readonly act: 1 | 2;
+  /**
+   * The run's Act-2 biome — seeded-random among the four Act-2 biomes, a pure function of the run
+   * seed (so it is known and deterministic from `startRun`, and survives save/load unchanged). It
+   * drives Act 2's encounter pool and boss; it is inert while `act === 1`.
+   */
+  readonly act2BiomeId: BiomeId;
   /**
    * OPTIONAL starting-variant id (Stage 4). Present ONLY on a run started from a variant; a
    * vanilla run OMITS this field entirely, so `startRun(seed)` is byte-identical to before
@@ -100,6 +113,7 @@ export type RunAction =
   | { readonly type: 'event_choice'; readonly index: number }
   | { readonly type: 'rest' }
   | { readonly type: 'rest_leave' }
+  | { readonly type: 'transition' } // the single forced action of the act_transition phase
   | { readonly type: 'move'; readonly nodeId: string };
 
 /**
@@ -135,6 +149,8 @@ export function legalActions(state: RunState): readonly RunAction[] {
       return phase.rest.rested ? [{ type: 'rest_leave' }] : [{ type: 'rest' }, { type: 'rest_leave' }];
     case 'awaiting_move':
       return legalNextNodes(state.map, state.mapState).map((nodeId) => ({ type: 'move', nodeId }));
+    case 'act_transition':
+      return [{ type: 'transition' }]; // one forced action: advance into Act 2 (never a wedge)
     case 'ended':
       return [];
   }

@@ -18,15 +18,24 @@
  */
 import { nextInt } from '../board';
 import type { RngState } from '../board';
-import { getEnemy } from '../combat';
-import type { Enemy, EnemyAction, EnemyId } from '../combat';
+import { getBiomeEnemy, getEnemy } from '../combat';
+import type { BiomeEnemyId, BiomeId, Enemy, EnemyAction, EnemyId } from '../combat';
 import { difficultyAt } from './mapGen';
 import type { MapConfig } from './mapConfig';
+import { getBiome } from './biomes';
 import { ATTACK_DIFFICULTY_DAMPEN, ELITE_ATTACK_MULT, ELITE_HP_MULT, ENCOUNTER_POOL, HP_DIFFICULTY_DAMPEN } from './runConfig';
 
-/** Scale one intent action's value by `atkMult` (charge stays 0 — it deals nothing). */
+/**
+ * Scale one intent action's value by `atkMult`. NON-scaling verbs (returned untouched):
+ * - `charge` — value is 0 (deals nothing),
+ * - `curse` — value is a TURN COUNT; scaling would inflate its heal-denial duration at deep floors
+ *   (content-biomes.md, Sunken Catacombs boss-scaling guard),
+ * - `spore` — value is a STACK COUNT; "stacks are stacks" — scaling would inflate the DoT length,
+ *   and content-biomes.md gives no fight-scaler rule to the contrary.
+ * `attack` / `heal` / `frostArmor` / `armor` are AMOUNTS and scale like `attack`.
+ */
 function scaleAction(action: EnemyAction, atkMult: number): EnemyAction {
-  if (action.type === 'charge') return action;
+  if (action.type === 'charge' || action.type === 'curse' || action.type === 'spore') return action;
   return { type: action.type, value: Math.round(action.value * atkMult) };
 }
 
@@ -60,4 +69,34 @@ export function scaledEnemyFor(
 export function selectEnemy(rngState: RngState): { enemyId: EnemyId; rngState: RngState } {
   const pick = nextInt(rngState, ENCOUNTER_POOL.length);
   return { enemyId: ENCOUNTER_POOL[pick.value], rngState: pick.state };
+}
+
+/**
+ * Seeded uniform pick of a biome-exclusive enemy from an Act-2 biome's four-enemy kit. Deterministic;
+ * threads RNG. The picked id is a `BiomeEnemyId` (the biome kits never list base ids for Act-2 biomes).
+ */
+export function selectBiomeEnemy(
+  rngState: RngState,
+  biomeId: BiomeId,
+): { enemyId: BiomeEnemyId; rngState: RngState } {
+  const ids = getBiome(biomeId).enemyIds;
+  const pick = nextInt(rngState, ids.length);
+  return { enemyId: ids[pick.value] as BiomeEnemyId, rngState: pick.state };
+}
+
+/**
+ * The difficulty-scaled enemy for an Act-2 fight/elite at (global) `floor` drawing biome enemy
+ * `enemyId`. Reuses the SAME `scaleEnemy` machinery as base enemies (so the curse/spore no-scale
+ * guards apply), and re-attaches the biome tag the scaled shape otherwise drops (for UI/compendium).
+ */
+export function scaledBiomeEnemyFor(
+  enemyId: BiomeEnemyId,
+  floor: number,
+  isElite: boolean,
+  config?: MapConfig,
+): Enemy {
+  const base = getBiomeEnemy(enemyId);
+  const diff = config === undefined ? difficultyAt(floor) : difficultyAt(floor, config);
+  const scaled = scaleEnemy(base, diff, isElite);
+  return base.biome === undefined ? scaled : { ...scaled, biome: base.biome };
 }
