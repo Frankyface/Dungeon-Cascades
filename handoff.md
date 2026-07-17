@@ -1,43 +1,45 @@
 # Handoff — Dungeon Cascades
-_Last updated: 2026-07-16 · Current stage: stage-4-meta-and-balance (closing) · Stage 5 on hold for Cam's assets_
+_Last updated: 2026-07-17 · Current stage: stage-6-expansion (implementation COMPLETE; matrix + Cam's gates remain)_
 
 ## 🎯 Goals
-Finish the tail of Stage 4 (tonight's purity matrix), land the compendium, attempt the iOS build, then
-stop — the project waits on Cam's on-device verdicts and Stage 5 assets.
+Act 2 expansion is implemented, audited, and fixed. Remaining: the final purity/balance matrix
+(running in background), Cam's on-device verdicts, and Stage 5 asset integration when art arrives.
 
 ## 📍 Current State
-- Stages 1–3: built + machine-verified; awaiting Cam's on-device gates (fun gate, beat-a-fight, full run).
-- Stage 4: built + verified except the ≥2000-game purity matrix (N=1000: all 6 variants PASS, worst 2.1pp).
-  Variant picker (/start), score banking, meta persistence all live.
-- Boss telegraph HIGH bug FIXED (bossFairness.test.ts guards it); both adversarial reviews closed out.
-- Suite: 59 suites / 517 tests green · tsc clean · iOS export clean · baselines byte-identical.
-- In flight: compendium agent (relics/enemies/boss encyclopedia + New-run→/start fix).
+- Expansion FULLY BUILT: 2 acts, 5 biomes, 19 enemies + 5 bosses, 88 relics (49C/25E/14L), 3 unlock
+  paths (biome-reach / boss-kill / altar-sacrifice), boss rush → God of War, tutorial, locked
+  compendium, biome theming, secret dev mode (7-tap menu title; storage-isolated).
+- Balance: all §9 bands PASS — win 49.2%, biome fairness 3.5-3.7pp (≤10), act-1-boss 68.1%, roles all
+  ±5pp, GoW 60.2% (prestige-exempt), tranches 2.5/17 runs. Fairness gate shipped in `npm run sim`.
+- Audits done + ALL findings fixed: implemented-relic audit (heartrot immunity), adversarial review
+  (channel visibility with status chips + effective numbers, dev-leak guard, GoW start card, altar
+  ordering + effective odds).
+- Suite: 84 suites / 933 tests green · tsc clean · iOS export clean · board+combat baselines byte-identical.
+- Builds: pre-tune expansion build 6a70e1ac done; FINAL tuned build launching from 67e3a42.
 
 ## 📂 Files I'm Working On
-- `src/ui/compendium/` + `app/compendium.tsx` — compendium agent (in flight).
-- `staging/stage-4-meta-and-balance/feature-meta-variants.md` — holds tonight's matrix command.
+- Background: final EAS build + the full `--mode report` purity matrix (×2 + diff).
 
 ## ✅ Things I've Changed
-- 2026-07-16 — Variant-select flow, meta banking (once-guarded), meta persistence adapter; 517 tests.
-- 2026-07-16 — Boss telegraph fairness fix + cascade cap (Fable agent, TDD, baselines unchanged).
-- 2026-07-16 — Stage 4 engine/sim: variants, meta tranches, --mode report; N=1000 purity all-PASS.
-- 2026-07-16 — UI review fixes: double-tap crash, hydrate race, scrollable combat, reducer guards.
-- 2026-07-16 — README + master plan refreshed to reality.
+- 2026-07-17 — Fix wave: channel visibility (effective dmg/heal + chips), heartrot, dev-leak, GoW card.
+- 2026-07-17 — Per-biome fairness instrumentation shipped into run sim + balance report.
+- 2026-07-17 — Balance: bands tuned, roles reworked (Cartographer), biome fairness content amendments.
+- 2026-07-17 — Progression: unlocks, altar, boss rush + pre-draft, dev helpers; two-act runs.
+- 2026-07-17 — Content: 4 biomes, 16 enemies, 4 bosses, 76 relics from the audited design workflow.
 
 ## ❌ Watch Out
-- Bots don't read telegraphs — telegraph-contract bugs are invisible to sims; bossFairness.test.ts is the
-  pattern for human-facing contract tests.
-- The ≥2000 purity matrix was killed twice by host restarts — run it in a stable window (~160 min total).
-- Combat fixtures pin constants (decisions.md "Combat recalibration") — recompute by hand if tuning.
+- Altar per-run idempotency deferred (needs MetaState schema surgery): crash in the ms window between
+  the two awaited writes → benign double-unlock. Known residual, logged in the fix-wave report.
+- Combat fixtures pin constants; content-biomes.md carries dated amendment notes — spec and data move together.
+- The `--mode report` matrix at 2000 games × 8 configs × 2 passes is an hours-long job — stable window only.
 
 ## ➡️ Next Up
-1. TONIGHT (Cam or any session): the purity matrix — command in feature-meta-variants.md; paste the
-   table into that log, flip the two [~] DoD boxes if PASS.
-2. Verify compendium agent → commit → attempt `eas build -p ios` via Cam's existing session (never enter
-   credentials; if Apple auth missing, hand Cam the command).
-3. Cam on-device: fun gate + beat-a-fight + full run + restart-persistence (help.md has procedures).
-4. Stage 5 when Cam's sounds/graphics arrive (shopping list in help.md).
+1. Background jobs finish → verify matrix verdicts (roles purity, fairness, determinism) + transcribe
+   into staging/stage-6-expansion/; submit the final build (Cam: `npx eas-cli submit -p ios --latest`).
+2. Cam on-device: two-act run, altar sacrifice, a biome unlock ceremony, boss rush attempt, tutorial,
+   compendium discovery states, dev mode isolation; fun-gate verdicts per help.md.
+3. Stage 5 when Cam's sounds/graphics arrive (help.md shopping list).
 
 ## 🔗 Pointer
-Current stage folder: `staging/stage-4-meta-and-balance/`
-Active feature file: `staging/stage-4-meta-and-balance/feature-meta-variants.md`
+Current stage folder: `staging/stage-6-expansion/`
+Active file: `staging/stage-6-expansion/spec-systems.md` (§9 gates — matrix evidence lands beside it)
