@@ -123,8 +123,37 @@ export {
   BOSS_NAME,
 } from './runConfig';
 export { scaleEnemy, scaledEnemyFor, selectEnemy } from './enemyScaling';
-export { BOSS_PHASES, bossMaxHp, bossPhaseForHp, bossEnemyForPhase, syncBossPhase } from './boss';
-export type { BossPhase, BossSyncResult } from './boss';
+export {
+  BOSS_PHASES,
+  bossMaxHp,
+  bossMaxHpFor,
+  bossPhaseForHp,
+  bossEnemyForPhase,
+  bossEnemyForPhaseOf,
+  syncBossPhase,
+} from './boss';
+export type { Boss, BossPhase, BossSyncResult } from './boss';
+
+// ── Stage-6: biome bosses + biome registry ───────────────────────────────────
+export {
+  BIOME_BOSS_BASE_HP,
+  BONE_COLOSSUS,
+  RIMEHEART,
+  FORGEHEART,
+  THE_ROTMOTHER,
+  DROWNED_SOVEREIGN,
+  BOSS_REGISTRY,
+  BOSSES,
+  getBossForBiome,
+} from './biomeBosses';
+export {
+  BIOMES,
+  BIOME_IDS,
+  ACT2_BIOME_IDS,
+  getBiome,
+  assertBiomesWellFormed,
+} from './biomes';
+export type { Biome } from './biomes';
 
 // ── Run state + flow (the lifecycle state machine) ───────────────────────────
 export type { RunState, RunPhase, RunStatus, EncounterKind, RunAction } from './runTypes';

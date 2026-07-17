@@ -51,6 +51,14 @@ export function intentStepLabel(action: EnemyAction): string {
       return `${icon} charge`;
     case 'heal':
       return `${icon} heal ${action.value}`;
+    case 'frostArmor':
+      return `${icon} shield ${action.value}`;
+    case 'armor':
+      return `${icon} armor ${action.value}`;
+    case 'spore':
+      return `${icon} spore ${action.value}`;
+    case 'curse':
+      return `${icon} curse ${action.value}`;
   }
 }
 

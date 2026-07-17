@@ -13,7 +13,7 @@
  * PURE ENGINE: no React / React Native imports; no wall-clock or ambient
  * randomness. See CLAUDE.md.
  */
-import type { AffinityTable, EnemyAction, EnemyId } from './types';
+import type { AffinityTable, BiomeId, EnemyAction, EnemyId } from './types';
 
 // ── Combat math scalars (decisions.md defaults) ──────────────────────────────
 
@@ -78,6 +78,8 @@ export interface EnemyStats {
   readonly maxHp: number;
   readonly affinity: AffinityTable;
   readonly script: readonly EnemyAction[];
+  /** The biome this enemy belongs to (the three base enemies are the default `dungeon`). */
+  readonly biome: BiomeId;
 }
 
 /**
@@ -93,6 +95,7 @@ export const ENEMY_STATS: Record<EnemyId, EnemyStats> = {
     maxHp: 80,
     affinity: { R: AFFINITY_WEAK },
     script: [{ type: 'attack', value: 8 }],
+    biome: 'dungeon',
   },
   skeleton: {
     maxHp: 120,
@@ -102,6 +105,7 @@ export const ENEMY_STATS: Record<EnemyId, EnemyStats> = {
       { type: 'charge', value: 0 },
       { type: 'attack', value: 16 },
     ],
+    biome: 'dungeon',
   },
   bat: {
     maxHp: 90,
@@ -110,5 +114,6 @@ export const ENEMY_STATS: Record<EnemyId, EnemyStats> = {
       { type: 'attack', value: 6 },
       { type: 'heal', value: 8 },
     ],
+    biome: 'dungeon',
   },
 };

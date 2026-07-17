@@ -39,6 +39,11 @@ const INTENT_TINT: Readonly<Record<EnemyAction['type'], string>> = {
   attack: COMBAT_COLORS.attackTint,
   charge: COMBAT_COLORS.chargeTint,
   heal: COMBAT_COLORS.healTint,
+  // Stage-6 biome verbs: defensive plating reads as "preparing", debuffs as "harmful".
+  frostArmor: COMBAT_COLORS.chargeTint,
+  armor: COMBAT_COLORS.chargeTint,
+  spore: COMBAT_COLORS.attackTint,
+  curse: COMBAT_COLORS.attackTint,
 };
 
 export function EnemyPanel({

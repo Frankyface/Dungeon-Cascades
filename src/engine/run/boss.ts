@@ -12,7 +12,7 @@
  * PURE ENGINE: no React / React Native imports; deterministic; never mutates input.
  */
 import { AFFINITY_RESIST, AFFINITY_WEAK } from '../combat';
-import type { AffinityTable, CombatState, Enemy, EnemyAction } from '../combat';
+import type { AffinityTable, BiomeId, BossId, CombatState, Enemy, EnemyAction } from '../combat';
 import { difficultyAt } from './mapGen';
 import type { MapConfig } from './mapConfig';
 import { ATTACK_DIFFICULTY_DAMPEN, BOSS_BASE_HP, BOSS_HP_DAMPEN, BOSS_NOMINAL_ENEMY_ID } from './runConfig';
@@ -22,6 +22,20 @@ export interface BossPhase {
   readonly name: string;
   readonly affinity: AffinityTable;
   readonly script: readonly EnemyAction[];
+}
+
+/**
+ * A whole boss as data: a stable id, display name, biome tag, base HP (150 for every Stage-6
+ * biome boss; 120 for the default-dungeon Bone Colossus), and its 3-phase model. The run layer
+ * drives it through the SAME machinery as the Bone Colossus (`bossEnemyForPhaseOf` +
+ * `syncBossPhase`) — no per-boss turn code. Boss selection by biome arrives in a later wave.
+ */
+export interface Boss {
+  readonly id: BossId;
+  readonly name: string;
+  readonly biome: BiomeId;
+  readonly baseHp: number;
+  readonly phases: readonly BossPhase[];
 }
 
 /**
@@ -62,10 +76,15 @@ export const BOSS_PHASES: readonly BossPhase[] = [
 const PHASE1_ABOVE = 0.66;
 const PHASE2_ABOVE = 0.33;
 
-/** The boss's scaled max HP for its floor: `round(BOSS_BASE_HP × (1 + (diff−1)·BOSS_HP_DAMPEN))`. */
-export function bossMaxHp(bossFloor: number, config?: MapConfig): number {
+/** Scaled boss max HP for a given base and floor: `round(base × (1 + (diff−1)·BOSS_HP_DAMPEN))`. */
+export function bossMaxHpFor(baseHp: number, bossFloor: number, config?: MapConfig): number {
   const diff = config === undefined ? difficultyAt(bossFloor) : difficultyAt(bossFloor, config);
-  return Math.round(BOSS_BASE_HP * (1 + (diff - 1) * BOSS_HP_DAMPEN));
+  return Math.round(baseHp * (1 + (diff - 1) * BOSS_HP_DAMPEN));
+}
+
+/** The Bone Colossus's scaled max HP for its floor (base `BOSS_BASE_HP`). */
+export function bossMaxHp(bossFloor: number, config?: MapConfig): number {
+  return bossMaxHpFor(BOSS_BASE_HP, bossFloor, config);
 }
 
 /** Which phase index a boss at `hp/maxHp` is in. */
@@ -76,9 +95,14 @@ export function bossPhaseForHp(hp: number, maxHp: number): number {
   return 2;
 }
 
-/** Scale a boss action's value by the boss-floor attack multiplier (charge stays 0). */
+/**
+ * Scale a boss action's value by the boss-floor attack multiplier. `charge` (value 0) and
+ * `curse` (value is a TURN COUNT, not damage) are NON-scaling — scaling curse would inflate its
+ * heal-denial duration at deep floors (content-biomes.md, Sunken Catacombs boss-scaling guard).
+ * `frostArmor` / `armor` / `spore` / `heal` are amounts and scale like `attack`.
+ */
 function scaleBossAction(action: EnemyAction, atkMult: number): EnemyAction {
-  if (action.type === 'charge') return action;
+  if (action.type === 'charge' || action.type === 'curse') return action;
   return { type: action.type, value: Math.round(action.value * atkMult) };
 }
 
@@ -95,6 +119,24 @@ export function bossEnemyForPhase(phaseIndex: number, maxHp: number, diff: numbe
     maxHp,
     affinity: phase.affinity,
     script: phase.script.map((a) => scaleBossAction(a, atkMult)),
+  };
+}
+
+/**
+ * Build the phase `Enemy` for ANY boss (the Bone Colossus or a Stage-6 biome boss) — the same
+ * per-phase affinity + floor-scaled script the Bone Colossus uses, but drawn from the supplied
+ * boss's data and carrying the real boss id + biome tag. Existing combat/scaling machinery runs
+ * these unchanged (via the `CombatState.enemy` override). Pure; never mutates input.
+ */
+export function bossEnemyForPhaseOf(boss: Boss, phaseIndex: number, maxHp: number, diff: number): Enemy {
+  const phase = boss.phases[phaseIndex];
+  const atkMult = 1 + (diff - 1) * ATTACK_DIFFICULTY_DAMPEN;
+  return {
+    id: boss.id,
+    maxHp,
+    affinity: phase.affinity,
+    script: phase.script.map((a) => scaleBossAction(a, atkMult)),
+    biome: boss.biome,
   };
 }
 

@@ -11,6 +11,10 @@
 // Serializable data model.
 export type {
   AffinityTable,
+  AnyEnemyId,
+  BiomeEnemyId,
+  BiomeId,
+  BossId,
   CombatEffects,
   CombatState,
   EffectKind,
@@ -54,6 +58,9 @@ export {
   nextIntentIndex,
   initialTelegraph,
 } from './enemies';
+
+// Stage-6 biome-enemy registry (16 enemies; reach combat via the `enemy` override seam).
+export { BIOME_ENEMY_IDS, BIOME_ENEMY_STATS, getBiomeEnemy, biomeAffinityFor } from './biomeEnemies';
 
 // Encounter state machine.
 export { startEncounter, playTurn } from './encounter';

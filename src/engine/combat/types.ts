@@ -12,19 +12,80 @@
  */
 import type { Board, ClearedGroup, MoveResolution, RngState, TileColor } from '../board';
 
-/** The three Stage-2 enemies, addressed by a stable serializable id. */
+/** The three Stage-2 (default-biome / "dungeon") enemies, addressed by a stable serializable id. */
 export type EnemyId = 'slime' | 'skeleton' | 'bat';
 
 /**
- * What an enemy can do on its turn. A deliberately small, EXTENSIBLE union: a
- * Stage-3 verb (block, debuff, summon) is added by extending `type` and adding one
- * handler branch in `applyEnemyAction` — no rework of the state machine.
+ * The 16 Stage-6 biome-exclusive enemies (4 per Act-2 biome). Kept in a SEPARATE union
+ * from `EnemyId` on purpose: `EnemyId` still drives `CombatState.enemyId`, the encounter
+ * pool, and the UI's `Record<EnemyId, …>` glyph/tint tables (which must stay 3-key), while
+ * biome enemies reach combat as pre-built `Enemy` data through the `CombatState.enemy`
+ * override seam — exactly like the boss. See content-biomes.md.
+ */
+export type BiomeEnemyId =
+  // Glacial Crypt
+  | 'permafrost-warden'
+  | 'frostbite-wisp'
+  | 'hoarfrost-cantor'
+  | 'icebound-revenant'
+  // Emberworks
+  | 'slagback-brute'
+  | 'cinder-imp'
+  | 'forge-tender'
+  | 'furnace-wisp'
+  // Rotwood
+  | 'mirebark-hulk'
+  | 'rotgrub-swarm'
+  | 'mendcap-colony'
+  | 'deathcap-herald'
+  // Sunken Catacombs
+  | 'drowned-warden'
+  | 'grasping-drowned'
+  | 'lantern-medusa'
+  | 'corpsefire-wisp';
+
+/** The five bosses (one per biome; Bone Colossus = the default dungeon). */
+export type BossId =
+  | 'bone-colossus'
+  | 'rimeheart'
+  | 'forgeheart'
+  | 'the-rotmother'
+  | 'drowned-sovereign';
+
+/**
+ * Any identity an `Enemy` DATA object may carry — base, biome, or a boss phase. This is the
+ * type of `Enemy.id` (widened from `EnemyId`). It is DELIBERATELY wider than `EnemyId`: only
+ * `Enemy.id` widens; `CombatState.enemyId` stays the narrow `EnemyId`, so no `Record<EnemyId>`
+ * table has to grow. No consumer reads `Enemy.id` where an `EnemyId` is required.
+ */
+export type AnyEnemyId = EnemyId | BiomeEnemyId | BossId;
+
+/** The five biomes (Act 1 = `dungeon`; Act 2 = one of the four Stage-6 biomes). */
+export type BiomeId =
+  | 'dungeon'
+  | 'glacial-crypt'
+  | 'emberworks'
+  | 'rotwood'
+  | 'sunken-catacombs';
+
+/**
+ * What an enemy can do on its turn. A deliberately small, EXTENSIBLE union: a new verb is
+ * added by extending `type` and adding one handler branch in `applyEnemyAction` — the switch
+ * is EXHAUSTIVE, so a new verb is a COMPILE error everywhere it is switched until handled.
  * - `attack`: deal `value` damage to the player.
  * - `charge`: a telegraphed wind-up; `value` is 0 (does nothing this turn, but the
  *   NEXT telegraph is the big hit the player now sees coming).
  * - `heal`:   the enemy heals ITSELF by `value` (capped at its max HP).
+ * Stage-6 biome verbs (content-biomes.md — one per biome):
+ * - `frostArmor` (Glacial Crypt): raise a persistent shield (`enemyShield`) that absorbs
+ *   player damage before HP and does NOT passively regenerate; `value` = shield raised (max).
+ * - `armor` (Emberworks): plate for ONE hit — dampen the player's NEXT strike by `value`
+ *   (post-affinity), then clear. Stored in `enemyArmor`.
+ * - `spore` (Rotwood): add `value` rot stacks to the player (`rotStacks`), a self-decaying DoT.
+ * - `curse` (Sunken Catacombs): 0 direct damage — set the player's `curseTurns` to `value`,
+ *   halving their move heals while active.
  */
-export type EnemyActionType = 'attack' | 'charge' | 'heal';
+export type EnemyActionType = 'attack' | 'charge' | 'heal' | 'frostArmor' | 'armor' | 'spore' | 'curse';
 
 /** A single telegraphed enemy action (type + value). This IS what fires. */
 export interface EnemyAction {
@@ -47,11 +108,13 @@ export type AffinityTable = Partial<Record<TileColor, number>>;
  * only the `enemyId` plus live HP/intent pointers.
  */
 export interface Enemy {
-  readonly id: EnemyId;
+  readonly id: AnyEnemyId;
   readonly maxHp: number;
   readonly affinity: AffinityTable;
   /** Cyclic intent script; the enemy walks it in order and wraps at the end. */
   readonly script: readonly EnemyAction[];
+  /** Which biome this enemy belongs to (content tag). Absent on ad-hoc scaled/boss-phase data. */
+  readonly biome?: BiomeId;
 }
 
 /** Terminal / running status of an encounter. */
@@ -124,6 +187,31 @@ export interface CombatState {
   readonly status: EncounterStatus;
   /** Number of player turns resolved so far. */
   readonly turn: number;
+
+  // ── Stage-6 biome channels (all OPTIONAL; an ABSENT field ⇒ 0 ⇒ byte-identical to the
+  //    Stage-2 engine, so every default-biome / boss fight is unaffected). content-biomes.md. ──
+
+  /**
+   * Glacial Crypt (`frostArmor`). A persistent enemy shield that absorbs player damage BEFORE
+   * HP and does NOT passively regenerate: player damage subtracts from it first, remainder
+   * carries to `enemyHp`. Raised by `frostArmor` (via max); depleted only by being shattered.
+   */
+  readonly enemyShield?: number;
+  /**
+   * Emberworks (`armor`). A ONE-SHOT dampener on the player's NEXT strike: set by `armor`,
+   * subtracted from the next move's post-affinity damage (floored at 0), then cleared.
+   */
+  readonly enemyArmor?: number;
+  /**
+   * Rotwood (`spore`). Rot stacks on the PLAYER: at each player-turn-start they deal
+   * `rotStacks` damage on their own channel (bypassing defensive relics), then decay by 1.
+   */
+  readonly rotStacks?: number;
+  /**
+   * Sunken Catacombs (`curse`). Turns remaining of heal-halving on the PLAYER: while > 0 the
+   * player's move heal is halved; decrements by 1 at the end of each resolved player turn.
+   */
+  readonly curseTurns?: number;
 }
 
 /**
@@ -142,6 +230,12 @@ export interface TurnResolution {
   readonly heal: number;
   /** What the enemy did this turn; `null` when the enemy died and never acted. */
   readonly enemyAction: EnemyAction | null;
+  /**
+   * Rot (Rotwood) damage dealt to the player at THIS turn's start, on its own channel — the
+   * rolled DoT (overkill retained, like `damage`). 0 whenever the player carries no rot, so
+   * every non-Rotwood fight reports 0. content-biomes.md.
+   */
+  readonly rotTick: number;
   readonly playerHpBefore: number;
   readonly playerHpAfter: number;
   readonly enemyHpBefore: number;

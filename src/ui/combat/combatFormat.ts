@@ -133,6 +133,11 @@ const INTENT_ICON: Readonly<Record<EnemyAction['type'], string>> = {
   attack: '⚔',
   charge: '⚡',
   heal: '✚',
+  // Stage-6 biome verbs (placeholder-grade glyphs, like the tiles).
+  frostArmor: '🛡',
+  armor: '🛡',
+  spore: '🌫',
+  curse: '🌀',
 };
 
 /**
@@ -164,6 +169,34 @@ export function formatIntent(action: EnemyAction): IntentDisplay {
         badge: `heals ${action.value}`,
         sentence: `Heals ${action.value} next turn`,
       };
+    case 'frostArmor':
+      return {
+        kind: 'frostArmor',
+        icon,
+        badge: `shield ${action.value}`,
+        sentence: `Raises a ${action.value}-point frost shield next turn`,
+      };
+    case 'armor':
+      return {
+        kind: 'armor',
+        icon,
+        badge: `armor ${action.value}`,
+        sentence: `Plates for ${action.value} — softens your next strike`,
+      };
+    case 'spore':
+      return {
+        kind: 'spore',
+        icon,
+        badge: `spore ${action.value}`,
+        sentence: `Seeds ${action.value} rot next turn`,
+      };
+    case 'curse':
+      return {
+        kind: 'curse',
+        icon,
+        badge: `curse ${action.value}`,
+        sentence: `Curses you — halved heals for ${action.value} turns`,
+      };
   }
 }
 
@@ -180,6 +213,14 @@ export function formatEnemyAction(id: EnemyId, action: EnemyAction | null): stri
       return `${name} is charging…`;
     case 'heal':
       return `${name} heals ${action.value}`;
+    case 'frostArmor':
+      return `${name} raises a ${action.value} frost shield`;
+    case 'armor':
+      return `${name} plates for ${action.value}`;
+    case 'spore':
+      return `${name} seeds ${action.value} rot`;
+    case 'curse':
+      return `${name} curses you for ${action.value} turns`;
   }
 }
 
